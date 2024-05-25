@@ -28,7 +28,7 @@ public abstract class ConfigFile {
     private final JavaPlugin plugin;
 
     /**
-     * Constructs a new ConfigFile instance.
+     * Constructs a new {@link ConfigFile} instance.
      *
      * @param plugin the JavaPlugin instance
      * @param fileName the name of the configuration file
@@ -65,7 +65,7 @@ public abstract class ConfigFile {
      * This method should be implemented by subclasses to perform any initialization tasks.
      * </p>
      *
-     * @return the initialized ConfigFile instance
+     * @return the initialized {@link ConfigFile} instance
      */
     public abstract ConfigFile init();
 
