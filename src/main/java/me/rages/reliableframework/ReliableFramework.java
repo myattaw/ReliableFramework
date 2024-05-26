@@ -3,7 +3,7 @@ package me.rages.reliableframework;
 import lombok.SneakyThrows;
 import me.rages.reliableframework.storage.SQLStorage;
 import me.rages.reliableframework.storage.impl.SQLiteStorage;
-import me.rages.reliableframework.user.User;
+import me.rages.reliableframework.data.User;
 import org.bukkit.event.EventHandler;
 import org.bukkit.event.Listener;
 import org.bukkit.event.player.PlayerJoinEvent;
@@ -14,7 +14,7 @@ import java.util.*;
 
 public class ReliableFramework extends JavaPlugin implements Listener {
 
-    private SQLStorage<?> storage;
+    private SQLStorage storage;
 
     @Override
     @SneakyThrows
@@ -38,17 +38,17 @@ public class ReliableFramework extends JavaPlugin implements Listener {
         UUID playerUUID = event.getPlayer().getUniqueId();
 
         // Load the user from the database
-        User user = storage.loadUser(playerUUID);
+        User user = (User) storage.load(playerUUID, User.class);
 
         // If the user doesn't exist, create a new one
         if (user == null) {
-            user = storage.createUser(playerUUID);
+            user = (User) storage.create(playerUUID, User.class);
         }
 
         // Get the current join count, increment it, and save it back
         int totalJoins = user.get("join_count", Integer.class).orElse(0);
         user.set("join_count", totalJoins + 1);
-        storage.saveUser(user);
+        storage.save(user);
     }
 
 

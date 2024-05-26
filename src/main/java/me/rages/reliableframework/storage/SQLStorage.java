@@ -1,18 +1,15 @@
 package me.rages.reliableframework.storage;
 
-import me.rages.reliableframework.storage.impl.SQLiteStorage;
-import me.rages.reliableframework.user.User;
-import org.bukkit.Bukkit;
-import org.bukkit.OfflinePlayer;
+import me.rages.reliableframework.data.DataObject;
 import org.bukkit.plugin.java.JavaPlugin;
 
+import java.lang.reflect.Constructor;
 import java.sql.*;
 import java.util.HashMap;
 import java.util.Map;
 import java.util.UUID;
 
-public abstract class SQLStorage<T extends JavaPlugin> implements Database {
-
+public abstract class SQLStorage<T extends JavaPlugin, D extends DataObject> implements Database<D> {
     protected final T plugin;
     protected Connection connection;
 
@@ -21,7 +18,7 @@ public abstract class SQLStorage<T extends JavaPlugin> implements Database {
     }
 
     @Override
-    public abstract SQLiteStorage<?> connect() throws SQLException;
+    public abstract SQLStorage<T, D> connect() throws SQLException;
 
     @Override
     public void disconnect() throws SQLException {
@@ -159,40 +156,53 @@ public abstract class SQLStorage<T extends JavaPlugin> implements Database {
     }
 
     @Override
-    public User loadUser(UUID uuid) throws SQLException {
-        ResultSet rs = query("SELECT * FROM users WHERE uuid = ?", uuid.toString());
+    public D load(UUID uuid, Class<D> clazz) throws SQLException {
+        ResultSet rs = query("SELECT * FROM " + getTableName(clazz) + " WHERE uuid = ?", uuid.toString());
         if (rs.next()) {
-            User user = new User(uuid, rs.getString("name"), this);
-            ResultSetMetaData metaData = rs.getMetaData();
-            int columnCount = metaData.getColumnCount();
-            for (int i = 1; i <= columnCount; i++) {
-                String columnName = metaData.getColumnName(i);
-                if (!columnName.equals("uuid") && !columnName.equals("name")) {
-                    user.set(columnName, rs.getObject(columnName));
+            try {
+                Constructor<D> constructor = clazz.getConstructor(UUID.class, SQLStorage.class);
+                D dataObject = constructor.newInstance(uuid, this);
+                ResultSetMetaData metaData = rs.getMetaData();
+                int columnCount = metaData.getColumnCount();
+                for (int i = 1; i <= columnCount; i++) {
+                    String columnName = metaData.getColumnName(i);
+                    if (!columnName.equals("uuid")) {
+                        dataObject.set(columnName, rs.getObject(columnName));
+                    }
                 }
+                return dataObject;
+            } catch (Exception e) {
+                throw new SQLException("Failed to load data object", e);
             }
-            return user;
         }
         return null;
     }
 
     @Override
-    public void saveUser(User user) throws SQLException {
-        Map<String, Object> data = user.getData();
-        data.put("uuid", user.getUuid().toString());
-        data.put("name", user.getName());
-        update("users", data, "uuid = ?", user.getUuid().toString());
+    public void save(D dataObject) throws SQLException {
+        Map<String, Object> data = dataObject.getData();
+        data.put("uuid", dataObject.getUuid().toString());
+        update(
+                getTableName((Class<D>) dataObject.getClass()),
+                data,
+                "uuid = ?", dataObject.getUuid().toString()
+        );
     }
 
     @Override
-    public User createUser(UUID uuid) throws SQLException {
-        OfflinePlayer offlinePlayer = Bukkit.getOfflinePlayer(uuid);
-        User user = new User(uuid, offlinePlayer.getName(), this);
-        Map<String, Object> data = new HashMap<>();
-        data.put("uuid", uuid.toString());
-        data.put("name", offlinePlayer.getName());
-        insert("users", data);
-        return user;
+    public D create(UUID uuid, Class<D> clazz) throws SQLException {
+        try {
+            Constructor<D> constructor = clazz.getConstructor(UUID.class, SQLStorage.class);
+            D dataObject = constructor.newInstance(uuid, this);
+            Map<String, Object> data = new HashMap<>();
+            data.put("uuid", uuid.toString());
+            insert(getTableName(clazz), data);
+            return dataObject;
+        } catch (Exception e) {
+            throw new SQLException("Failed to create data object", e);
+        }
     }
+
+    protected abstract String getTableName(Class<D> clazz);
 
 }

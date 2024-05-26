@@ -1,7 +1,6 @@
 package me.rages.reliableframework.storage;
 
-import me.rages.reliableframework.storage.impl.SQLiteStorage;
-import me.rages.reliableframework.user.User;
+import me.rages.reliableframework.data.DataObject;
 
 import java.sql.Connection;
 import java.sql.ResultSet;
@@ -9,9 +8,9 @@ import java.sql.SQLException;
 import java.util.Map;
 import java.util.UUID;
 
-public interface Database {
+public interface Database<D extends DataObject> {
 
-    SQLiteStorage connect() throws SQLException;
+    SQLStorage<?, D> connect() throws SQLException;
 
     void disconnect() throws SQLException;
 
@@ -31,10 +30,10 @@ public interface Database {
 
     boolean columnExists(String tableName, String columnName) throws SQLException;
 
-    User loadUser(UUID uuid) throws SQLException;
+    D load(UUID uuid, Class<D> clazz) throws SQLException;
 
-    void saveUser(User user) throws SQLException;
+    void save(D dataObject) throws SQLException;
 
-    User createUser(UUID uuid) throws SQLException;
+    D create(UUID uuid, Class<D> clazz) throws SQLException;
 
 }
