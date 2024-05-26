@@ -4,9 +4,9 @@ import me.rages.reliableframework.storage.SQLStorage;
 import org.bukkit.plugin.java.JavaPlugin;
 
 import java.io.File;
-import java.sql.Connection;
 import java.sql.DriverManager;
 import java.sql.SQLException;
+import java.sql.Statement;
 
 public class SQLiteStorage<T extends JavaPlugin> extends SQLStorage<T> {
 
@@ -15,35 +15,24 @@ public class SQLiteStorage<T extends JavaPlugin> extends SQLStorage<T> {
     }
 
     @Override
-    public Connection connect() throws SQLException {
+    public SQLiteStorage<? extends JavaPlugin> connect() throws SQLException {
         if (connection != null && !connection.isClosed()) {
-            return connection;
+            return null;
         }
-        final File file = new File(plugin.getDataFolder(), "data.db");
+        File file = new File(plugin.getDataFolder(), "data.db");
         connection = DriverManager.getConnection("jdbc:sqlite:" + file.getAbsolutePath());
-        return connection;
-    }
 
-    @Override
-    public void disconnect() throws SQLException {
-        if (connection != null && !connection.isClosed()) {
-            connection.close();
+        try (Statement statement = connection.createStatement()) {
+            // Example table creation, modify as needed
+            String sql = "CREATE TABLE IF NOT EXISTS users (" +
+                    "id INTEGER PRIMARY KEY AUTOINCREMENT," +
+                    "uuid TEXT NOT NULL UNIQUE," +
+                    "name TEXT NOT NULL)";
+            statement.execute(sql);
+        } catch (SQLException e) {
+            throw new RuntimeException(e);
         }
-    }
-
-    @Override
-    public Connection getConnection() {
-        return connection;
-    }
-
-    @Override
-    public void setupTables() throws SQLException {
-        // Implement table setup logic here
-    }
-
-    @Override
-    public void addColumn(String tableName, String columnDefinition) throws SQLException {
-        // Implement adding column logic here
+        return null;
     }
 
 }
