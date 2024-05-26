@@ -1,13 +1,16 @@
 package me.rages.reliableframework.storage;
 
+import me.rages.reliableframework.data.Column;
 import me.rages.reliableframework.data.DataObject;
+import me.rages.reliableframework.data.Id;
 import org.bukkit.plugin.java.JavaPlugin;
 
 import java.lang.reflect.Constructor;
+import java.lang.reflect.Field;
 import java.sql.*;
-import java.util.HashMap;
+import java.util.ArrayList;
+import java.util.List;
 import java.util.Map;
-import java.util.UUID;
 
 public abstract class SQLStorage<T extends JavaPlugin, D extends DataObject> implements Database<D> {
     protected final T plugin;
@@ -54,25 +57,37 @@ public abstract class SQLStorage<T extends JavaPlugin, D extends DataObject> imp
     }
 
     @Override
-    public void insert(String tableName, Map<String, Object> data) throws SQLException {
+    public void insert(String tableName, D dataObject) throws SQLException {
         StringBuilder columns = new StringBuilder();
         StringBuilder values = new StringBuilder();
-        for (String column : data.keySet()) {
-            columns.append(column).append(",");
-            values.append("?,");
+        List<Object> params = new ArrayList<>();
+
+        for (Field field : dataObject.getClass().getDeclaredFields()) {
+            if (field.isAnnotationPresent(Column.class)) {
+                field.setAccessible(true);
+                columns.append(field.getName()).append(",");
+                values.append("?,");
+                try {
+                    params.add(field.get(dataObject));
+                } catch (IllegalAccessException e) {
+                    throw new SQLException("Failed to access field value", e);
+                }
+            }
         }
+
         columns.deleteCharAt(columns.length() - 1);
         values.deleteCharAt(values.length() - 1);
 
         String sql = "INSERT INTO " + tableName + " (" + columns + ") VALUES (" + values + ")";
         try (PreparedStatement preparedStatement = connection.prepareStatement(sql)) {
             int index = 1;
-            for (Object value : data.values()) {
+            for (Object value : params) {
                 preparedStatement.setObject(index++, value);
             }
             preparedStatement.executeUpdate();
         }
     }
+
 
     @Override
     public ResultSet query(String query, Object... params) throws SQLException {
@@ -92,15 +107,15 @@ public abstract class SQLStorage<T extends JavaPlugin, D extends DataObject> imp
         setClause.deleteCharAt(setClause.length() - 1);
 
         String sql = "UPDATE " + tableName + " SET " + setClause + " WHERE " + whereClause;
-        try (PreparedStatement pstmt = connection.prepareStatement(sql)) {
+        try (PreparedStatement preparedStatement = connection.prepareStatement(sql)) {
             int index = 1;
             for (Object value : data.values()) {
-                pstmt.setObject(index++, value);
+                preparedStatement.setObject(index++, value);
             }
             for (Object param : whereParams) {
-                pstmt.setObject(index++, param);
+                preparedStatement.setObject(index++, param);
             }
-            pstmt.executeUpdate();
+            preparedStatement.executeUpdate();
         }
     }
 
@@ -155,21 +170,29 @@ public abstract class SQLStorage<T extends JavaPlugin, D extends DataObject> imp
         }
     }
 
+
     @Override
-    public D load(UUID uuid, Class<D> clazz) throws SQLException {
-        ResultSet rs = query("SELECT * FROM " + getTableName(clazz) + " WHERE uuid = ?", uuid.toString());
+    public D load(Map.Entry<String, Object> identifier, Class<D> clazz) throws SQLException {
+        ResultSet rs = query("SELECT * FROM " + getTableName(clazz) + " WHERE "
+                + identifier.getKey() + " = ?", identifier.getValue());
         if (rs.next()) {
             try {
-                Constructor<D> constructor = clazz.getConstructor(UUID.class, SQLStorage.class);
-                D dataObject = constructor.newInstance(uuid, this);
+                Constructor<D> constructor = clazz.getConstructor(SQLStorage.class);
+                D dataObject = constructor.newInstance(this);
+                for (Field field : clazz.getDeclaredFields()) {
+                    if (field.isAnnotationPresent(Column.class)) {
+                        field.setAccessible(true);
+                        field.set(dataObject, rs.getObject(field.getName()));
+                    }
+                }
+
                 ResultSetMetaData metaData = rs.getMetaData();
                 int columnCount = metaData.getColumnCount();
                 for (int i = 1; i <= columnCount; i++) {
                     String columnName = metaData.getColumnName(i);
-                    if (!columnName.equals("uuid")) {
-                        dataObject.set(columnName, rs.getObject(columnName));
-                    }
+                    dataObject.set(columnName, rs.getObject(columnName));
                 }
+
                 return dataObject;
             } catch (Exception e) {
                 throw new SQLException("Failed to load data object", e);
@@ -181,27 +204,60 @@ public abstract class SQLStorage<T extends JavaPlugin, D extends DataObject> imp
     @Override
     public void save(D dataObject) throws SQLException {
         Map<String, Object> data = dataObject.getData();
-        data.put("uuid", dataObject.getUuid().toString());
-        update(
-                getTableName((Class<D>) dataObject.getClass()),
-                data,
-                "uuid = ?", dataObject.getUuid().toString()
-        );
-    }
+        String idFieldName = null;
+        Object idFieldValue = null;
 
-    @Override
-    public D create(UUID uuid, Class<D> clazz) throws SQLException {
-        try {
-            Constructor<D> constructor = clazz.getConstructor(UUID.class, SQLStorage.class);
-            D dataObject = constructor.newInstance(uuid, this);
-            Map<String, Object> data = new HashMap<>();
-            data.put("uuid", uuid.toString());
-            insert(getTableName(clazz), data);
-            return dataObject;
-        } catch (Exception e) {
-            throw new SQLException("Failed to create data object", e);
+        for (Field field : dataObject.getClass().getDeclaredFields()) {
+            if (field.isAnnotationPresent(Id.class)) {
+                field.setAccessible(true);
+                idFieldName = field.getName();
+                try {
+                    idFieldValue = field.get(dataObject);
+                } catch (IllegalAccessException e) {
+                    throw new SQLException("Failed to access @Id field value", e);
+                }
+                break;
+            }
+        }
+
+        if (idFieldName == null || idFieldValue == null) {
+            throw new SQLException("No @Id field found in data object");
+        }
+
+        // Attempt to update the record
+        int rowsAffected = updateAndReturnAffectedRows(
+                getTableName((Class<D>) dataObject.getClass()),
+                data, idFieldName + " = ?", idFieldValue
+        );
+
+        // If no rows were affected, perform an insert so we don't need a create function
+        if (rowsAffected == 0) {
+            data.put(idFieldName, idFieldValue);  // Ensure ID field is included in the data for insertion
+            insert(getTableName((Class<D>) dataObject.getClass()), dataObject);
         }
     }
+
+    // Helper method to perform update and return number of affected rows
+    private int updateAndReturnAffectedRows(String tableName, Map<String, Object> data, String whereClause, Object... whereParams) throws SQLException {
+        StringBuilder setClause = new StringBuilder();
+        for (String column : data.keySet()) {
+            setClause.append(column).append(" = ?,");
+        }
+        setClause.deleteCharAt(setClause.length() - 1);
+
+        String sql = "UPDATE " + tableName + " SET " + setClause + " WHERE " + whereClause;
+        try (PreparedStatement preparedStatement = connection.prepareStatement(sql)) {
+            int index = 1;
+            for (Object value : data.values()) {
+                preparedStatement.setObject(index++, value);
+            }
+            for (Object param : whereParams) {
+                preparedStatement.setObject(index++, param);
+            }
+            return preparedStatement.executeUpdate();
+        }
+    }
+
 
     protected abstract String getTableName(Class<D> clazz);
 

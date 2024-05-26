@@ -18,7 +18,7 @@ public interface Database<D extends DataObject> {
 
     void addColumn(String tableName, String columnDefinition) throws SQLException;
 
-    void insert(String tableName, Map<String, Object> data) throws SQLException;
+    void insert(String tableName, D dataObject) throws SQLException;
 
     ResultSet query(String query, Object... params) throws SQLException;
 
@@ -30,10 +30,8 @@ public interface Database<D extends DataObject> {
 
     boolean columnExists(String tableName, String columnName) throws SQLException;
 
-    D load(UUID uuid, Class<D> clazz) throws SQLException;
+    D load(Map.Entry<String, Object> identifier, Class<D> clazz) throws SQLException;
 
     void save(D dataObject) throws SQLException;
-
-    D create(UUID uuid, Class<D> clazz) throws SQLException;
 
 }

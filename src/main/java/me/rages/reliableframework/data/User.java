@@ -1,8 +1,7 @@
 package me.rages.reliableframework.data;
 
-import lombok.Getter;
+import lombok.*;
 import me.rages.reliableframework.storage.SQLStorage;
-import org.bukkit.Bukkit;
 
 import java.sql.SQLException;
 import java.util.HashMap;
@@ -11,19 +10,21 @@ import java.util.Optional;
 import java.util.UUID;
 
 @Getter
+@Setter
 public class User implements DataObject {
 
-    private final UUID uuid;
-    private final String name;
-    private final Map<String, Object> data;
+    @Id
+    @Column
+    private String uuid;
+    @Column
+    private String name;
+    private final Map<String, Object> data = new HashMap<>();
     private final SQLStorage<?, ?> storage;
 
-    public User(UUID uuid, SQLStorage<?, ?> storage) {
-        this.uuid = uuid;
-        this.name = Bukkit.getOfflinePlayer(uuid).getName();
+    public User(SQLStorage<?, ?> storage) {
         this.storage = storage;
-        this.data = new HashMap<>();
     }
+
 
     @Override
     public <T> Optional<T> get(String key, Class<T> type) {

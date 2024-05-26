@@ -7,7 +7,6 @@ import java.util.UUID;
 
 public interface DataObject {
 
-    UUID getUuid();
     Map<String, Object> getData();
     <T> Optional<T> get(String key, Class<T> type);
     void set(String key, Object value) throws SQLException;

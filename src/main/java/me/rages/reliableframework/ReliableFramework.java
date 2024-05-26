@@ -4,6 +4,7 @@ import lombok.SneakyThrows;
 import me.rages.reliableframework.storage.SQLStorage;
 import me.rages.reliableframework.storage.impl.SQLiteStorage;
 import me.rages.reliableframework.data.User;
+import org.bukkit.entity.Player;
 import org.bukkit.event.EventHandler;
 import org.bukkit.event.Listener;
 import org.bukkit.event.player.PlayerJoinEvent;
@@ -35,19 +36,25 @@ public class ReliableFramework extends JavaPlugin implements Listener {
 
     @EventHandler
     public void onJoin(PlayerJoinEvent event) throws SQLException {
-        UUID playerUUID = event.getPlayer().getUniqueId();
+        Player player = event.getPlayer();
 
         // Load the user from the database
-        User user = (User) storage.load(playerUUID, User.class);
+        User user = (User) storage.load(Map.entry("uuid", player.getUniqueId()), User.class);
 
         // If the user doesn't exist, create a new one
         if (user == null) {
-            user = (User) storage.create(playerUUID, User.class);
+            user = new User(storage);
+            user.setUuid(player.getUniqueId().toString());
+            user.setName(player.getName());
+            System.out.println(String.format("Created the user: [%s, %s]", user.getName(), user.getUuid()));
+        } else {
+            System.out.println(String.format("Loaded the user: [%s, %s]", user.getName(), user.getUuid()));
         }
 
         // Get the current join count, increment it, and save it back
-        int totalJoins = user.get("join_count", Integer.class).orElse(0);
-        user.set("join_count", totalJoins + 1);
+        int totalJoins = user.get("join_count", Integer.class).orElse(0) + 1;
+        user.set("join_count", totalJoins);
+        System.out.println(String.format("%s has joined the server %d times.", user.getName(), totalJoins));
         storage.save(user);
     }
 

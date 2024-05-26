@@ -24,7 +24,6 @@ public class SQLiteStorage<T extends JavaPlugin, D extends DataObject> extends S
         File file = new File(plugin.getDataFolder(), "data.db");
         connection = DriverManager.getConnection("jdbc:sqlite:" + file.getAbsolutePath());
 
-        // Example table creation, modify as needed
         try (Statement statement = connection.createStatement()) {
             String sql = "CREATE TABLE IF NOT EXISTS users (" +
                     "id INTEGER PRIMARY KEY AUTOINCREMENT," +
