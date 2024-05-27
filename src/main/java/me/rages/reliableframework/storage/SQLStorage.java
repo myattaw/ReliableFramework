@@ -8,11 +8,11 @@ import org.bukkit.plugin.java.JavaPlugin;
 import java.lang.reflect.Constructor;
 import java.lang.reflect.Field;
 import java.sql.*;
-import java.util.ArrayList;
-import java.util.List;
-import java.util.Map;
+import java.util.*;
+import java.util.stream.Collectors;
 
 public abstract class SQLStorage<T extends JavaPlugin, D extends DataObject> implements Database<D> {
+
     protected final T plugin;
     protected Connection connection;
 
@@ -37,8 +37,8 @@ public abstract class SQLStorage<T extends JavaPlugin, D extends DataObject> imp
 
     @Override
     public void addColumn(String tableName, String columnDefinition) throws SQLException {
+        String sql = "ALTER TABLE " + tableName + " ADD COLUMN " + columnDefinition;
         try (Statement stmt = connection.createStatement()) {
-            String sql = "ALTER TABLE " + tableName + " ADD COLUMN " + columnDefinition;
             stmt.execute(sql);
         }
     }
@@ -58,88 +58,64 @@ public abstract class SQLStorage<T extends JavaPlugin, D extends DataObject> imp
 
     @Override
     public void insert(String tableName, D dataObject) throws SQLException {
-        StringBuilder columns = new StringBuilder();
-        StringBuilder values = new StringBuilder();
-        List<Object> params = new ArrayList<>();
-
-        for (Field field : dataObject.getClass().getDeclaredFields()) {
-            if (field.isAnnotationPresent(Column.class)) {
-                field.setAccessible(true);
-                columns.append(field.getName()).append(",");
-                values.append("?,");
-                try {
-                    params.add(field.get(dataObject));
-                } catch (IllegalAccessException e) {
-                    throw new SQLException("Failed to access field value", e);
-                }
-            }
-        }
-
-        columns.deleteCharAt(columns.length() - 1);
-        values.deleteCharAt(values.length() - 1);
+        Map<String, Object> data = dataObject.getData();
+        String columns = String.join(",", data.keySet());
+        String values = String.join(",", Collections.nCopies(data.size(), "?"));
 
         String sql = "INSERT INTO " + tableName + " (" + columns + ") VALUES (" + values + ")";
-        try (PreparedStatement preparedStatement = connection.prepareStatement(sql)) {
+        try (PreparedStatement ps = connection.prepareStatement(sql)) {
             int index = 1;
-            for (Object value : params) {
-                preparedStatement.setObject(index++, value);
+            for (Object value : data.values()) {
+                ps.setObject(index++, value);
             }
-            preparedStatement.executeUpdate();
+            ps.executeUpdate();
         }
     }
 
-
     @Override
     public ResultSet query(String query, Object... params) throws SQLException {
-        PreparedStatement preparedStatement = connection.prepareStatement(query);
+        PreparedStatement ps = connection.prepareStatement(query);
         for (int i = 0; i < params.length; i++) {
-            preparedStatement.setObject(i + 1, params[i]);
+            ps.setObject(i + 1, params[i]);
         }
-        return preparedStatement.executeQuery();
+        return ps.executeQuery();
     }
 
     @Override
     public void update(String tableName, Map<String, Object> data, String whereClause, Object... whereParams) throws SQLException {
-        StringBuilder setClause = new StringBuilder();
-        for (String column : data.keySet()) {
-            setClause.append(column).append(" = ?,");
-        }
-        setClause.deleteCharAt(setClause.length() - 1);
-
+        String setClause = String.join(" = ?, ", data.keySet()) + " = ?";
         String sql = "UPDATE " + tableName + " SET " + setClause + " WHERE " + whereClause;
-        try (PreparedStatement preparedStatement = connection.prepareStatement(sql)) {
+        try (PreparedStatement ps = connection.prepareStatement(sql)) {
             int index = 1;
             for (Object value : data.values()) {
-                preparedStatement.setObject(index++, value);
+                ps.setObject(index++, value);
             }
             for (Object param : whereParams) {
-                preparedStatement.setObject(index++, param);
+                ps.setObject(index++, param);
             }
-            preparedStatement.executeUpdate();
+            ps.executeUpdate();
         }
     }
 
     @Override
     public void delete(String tableName, String whereClause, Object... whereParams) throws SQLException {
         String sql = "DELETE FROM " + tableName + " WHERE " + whereClause;
-        try (PreparedStatement pstmt = connection.prepareStatement(sql)) {
+        try (PreparedStatement ps = connection.prepareStatement(sql)) {
             for (int i = 0; i < whereParams.length; i++) {
-                pstmt.setObject(i + 1, whereParams[i]);
+                ps.setObject(i + 1, whereParams[i]);
             }
-            pstmt.executeUpdate();
+            ps.executeUpdate();
         }
     }
 
     @Override
     public void createTable(String tableName, Map<String, String> columns) throws SQLException {
-        StringBuilder sql = new StringBuilder("CREATE TABLE IF NOT EXISTS ").append(tableName).append(" (");
-        for (Map.Entry<String, String> column : columns.entrySet()) {
-            sql.append(column.getKey()).append(" ").append(column.getValue()).append(",");
-        }
-        sql.deleteCharAt(sql.length() - 1);  // Remove the trailing comma
-        sql.append(")");
+        String columnDefinitions = columns.entrySet().stream()
+                .map(entry -> entry.getKey() + " " + entry.getValue())
+                .collect(Collectors.joining(", "));
+        String sql = "CREATE TABLE IF NOT EXISTS " + tableName + " (" + columnDefinitions + ")";
         try (Statement stmt = connection.createStatement()) {
-            stmt.execute(sql.toString());
+            stmt.execute(sql);
         }
     }
 
@@ -151,10 +127,8 @@ public abstract class SQLStorage<T extends JavaPlugin, D extends DataObject> imp
     }
 
     private String getColumnType(Object value) {
-        if (value instanceof Integer) {
+        if (value instanceof Integer || value instanceof Long) {
             return "INTEGER DEFAULT 0";
-        } else if (value instanceof Long) {
-            return "INTEGER DEFAULT 0"; // SQLite uses INTEGER for both int and long
         } else if (value instanceof String) {
             return "TEXT";
         } else if (value instanceof Boolean) {
@@ -162,7 +136,7 @@ public abstract class SQLStorage<T extends JavaPlugin, D extends DataObject> imp
         } else if (value instanceof Double || value instanceof Float) {
             return "REAL";
         } else if (value instanceof java.util.Date) {
-            return "INTEGER DEFAULT 0"; // Store dates as INTEGER (epoch time) for SQLite compatibility
+            return "INTEGER DEFAULT 0";
         } else if (value instanceof byte[]) {
             return "BLOB";
         } else {
@@ -170,94 +144,90 @@ public abstract class SQLStorage<T extends JavaPlugin, D extends DataObject> imp
         }
     }
 
-
     @Override
     public D load(Map.Entry<String, Object> identifier, Class<D> clazz) throws SQLException {
-        ResultSet rs = query("SELECT * FROM " + getTableName(clazz) + " WHERE "
-                + identifier.getKey() + " = ?", identifier.getValue());
-        if (rs.next()) {
-            try {
-                Constructor<D> constructor = clazz.getConstructor(SQLStorage.class);
-                D dataObject = constructor.newInstance(this);
+        String tableName = getTableName(clazz);
+        String sql = "SELECT * FROM " + tableName + " WHERE " + identifier.getKey() + " = ?";
+        try (ResultSet rs = query(sql, identifier.getValue())) {
+            if (rs.next()) {
+                D dataObject = createDataObjectInstance(clazz);
                 for (Field field : clazz.getDeclaredFields()) {
                     if (field.isAnnotationPresent(Column.class)) {
                         field.setAccessible(true);
                         field.set(dataObject, rs.getObject(field.getName()));
                     }
                 }
-
-                ResultSetMetaData metaData = rs.getMetaData();
-                int columnCount = metaData.getColumnCount();
-                for (int i = 1; i <= columnCount; i++) {
-                    String columnName = metaData.getColumnName(i);
-                    dataObject.set(columnName, rs.getObject(columnName));
-                }
-
+                fillDataObjectFromResultSet(dataObject, rs);
                 return dataObject;
-            } catch (Exception e) {
-                throw new SQLException("Failed to load data object", e);
             }
+        } catch (ReflectiveOperationException e) {
+            throw new SQLException("Failed to load data object", e);
         }
         return null;
+    }
+
+    private <D extends DataObject> D createDataObjectInstance(Class<D> clazz) throws ReflectiveOperationException {
+        Constructor<D> constructor = clazz.getConstructor(SQLStorage.class);
+        return constructor.newInstance(this);
+    }
+
+    private void fillDataObjectFromResultSet(DataObject dataObject, ResultSet rs) throws SQLException {
+        ResultSetMetaData metaData = rs.getMetaData();
+        int columnCount = metaData.getColumnCount();
+        for (int i = 1; i <= columnCount; i++) {
+            String columnName = metaData.getColumnName(i);
+            dataObject.set(columnName, rs.getObject(columnName));
+        }
     }
 
     @Override
     public void save(D dataObject) throws SQLException {
         Map<String, Object> data = dataObject.getData();
-        String idFieldName = null;
-        Object idFieldValue = null;
+        Map.Entry<String, Object> idField = getIdField(dataObject);
 
-        for (Field field : dataObject.getClass().getDeclaredFields()) {
-            if (field.isAnnotationPresent(Id.class)) {
-                field.setAccessible(true);
-                idFieldName = field.getName();
-                try {
-                    idFieldValue = field.get(dataObject);
-                } catch (IllegalAccessException e) {
-                    throw new SQLException("Failed to access @Id field value", e);
-                }
-                break;
-            }
-        }
-
-        if (idFieldName == null || idFieldValue == null) {
+        if (idField == null) {
             throw new SQLException("No @Id field found in data object");
         }
 
-        // Attempt to update the record
         int rowsAffected = updateAndReturnAffectedRows(
                 getTableName((Class<D>) dataObject.getClass()),
-                data, idFieldName + " = ?", idFieldValue
+                data, idField.getKey() + " = ?", idField.getValue()
         );
 
-        // If no rows were affected, perform an insert so we don't need a create function
         if (rowsAffected == 0) {
-            data.put(idFieldName, idFieldValue);  // Ensure ID field is included in the data for insertion
+            data.put(idField.getKey(), idField.getValue());
             insert(getTableName((Class<D>) dataObject.getClass()), dataObject);
         }
     }
 
-    // Helper method to perform update and return number of affected rows
-    private int updateAndReturnAffectedRows(String tableName, Map<String, Object> data, String whereClause, Object... whereParams) throws SQLException {
-        StringBuilder setClause = new StringBuilder();
-        for (String column : data.keySet()) {
-            setClause.append(column).append(" = ?,");
-        }
-        setClause.deleteCharAt(setClause.length() - 1);
-
-        String sql = "UPDATE " + tableName + " SET " + setClause + " WHERE " + whereClause;
-        try (PreparedStatement preparedStatement = connection.prepareStatement(sql)) {
-            int index = 1;
-            for (Object value : data.values()) {
-                preparedStatement.setObject(index++, value);
+    private <D extends DataObject> Map.Entry<String, Object> getIdField(D dataObject) throws SQLException {
+        for (Field field : dataObject.getClass().getDeclaredFields()) {
+            if (field.isAnnotationPresent(Id.class)) {
+                field.setAccessible(true);
+                try {
+                    return new AbstractMap.SimpleEntry<>(field.getName(), field.get(dataObject));
+                } catch (IllegalAccessException e) {
+                    throw new SQLException("Failed to access @Id field value", e);
+                }
             }
-            for (Object param : whereParams) {
-                preparedStatement.setObject(index++, param);
-            }
-            return preparedStatement.executeUpdate();
         }
+        return null;
     }
 
+    private int updateAndReturnAffectedRows(String tableName, Map<String, Object> data, String whereClause, Object... whereParams) throws SQLException {
+        String setClause = data.keySet().stream().map(key -> key + " = ?").collect(Collectors.joining(", "));
+        String sql = "UPDATE " + tableName + " SET " + setClause + " WHERE " + whereClause;
+        try (PreparedStatement ps = connection.prepareStatement(sql)) {
+            int index = 1;
+            for (Object value : data.values()) {
+                ps.setObject(index++, value);
+            }
+            for (Object param : whereParams) {
+                ps.setObject(index++, param);
+            }
+            return ps.executeUpdate();
+        }
+    }
 
     protected abstract String getTableName(Class<D> clazz);
 

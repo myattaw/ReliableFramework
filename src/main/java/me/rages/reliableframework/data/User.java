@@ -7,7 +7,6 @@ import java.sql.SQLException;
 import java.util.HashMap;
 import java.util.Map;
 import java.util.Optional;
-import java.util.UUID;
 
 @Getter
 @Setter
@@ -18,6 +17,7 @@ public class User implements DataObject {
     private String uuid;
     @Column
     private String name;
+
     private final Map<String, Object> data = new HashMap<>();
     private final SQLStorage<?, ?> storage;
 
@@ -28,11 +28,7 @@ public class User implements DataObject {
 
     @Override
     public <T> Optional<T> get(String key, Class<T> type) {
-        Object value = data.get(key);
-        if (value == null) {
-            return Optional.empty();
-        }
-        return Optional.of(type.cast(value));
+        return Optional.ofNullable(type.cast(data.get(key)));
     }
 
     @Override

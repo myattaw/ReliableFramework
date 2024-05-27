@@ -24,14 +24,12 @@ public class SQLiteStorage<T extends JavaPlugin, D extends DataObject> extends S
         File file = new File(plugin.getDataFolder(), "data.db");
         connection = DriverManager.getConnection("jdbc:sqlite:" + file.getAbsolutePath());
 
-        try (Statement statement = connection.createStatement()) {
+        try (Statement stmt = connection.createStatement()) {
             String sql = "CREATE TABLE IF NOT EXISTS users (" +
                     "id INTEGER PRIMARY KEY AUTOINCREMENT," +
                     "uuid TEXT NOT NULL UNIQUE," +
                     "name TEXT NOT NULL)";
-            statement.execute(sql);
-        } catch (SQLException e) {
-            throw new RuntimeException(e);
+            stmt.execute(sql);
         }
         return this;
     }
@@ -41,8 +39,8 @@ public class SQLiteStorage<T extends JavaPlugin, D extends DataObject> extends S
         if (clazz.equals(User.class)) {
             return "users";
         }
-        // Add more table names for different classes if needed
         throw new IllegalArgumentException("Unknown data object class: " + clazz.getName());
     }
 
 }
+
