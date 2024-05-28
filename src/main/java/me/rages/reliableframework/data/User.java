@@ -23,9 +23,9 @@ public class User implements DataObject {
     private String name;
 
     private final Map<String, Object> data = new HashMap<>();
-    private final SQLStorage<?, ?> storage;
+    private final SQLStorage storage;
 
-    public User(SQLStorage<?, ?> storage) {
+    public User(SQLStorage storage) {
         this.storage = storage;
     }
 

@@ -9,21 +9,24 @@ import java.io.File;
 import java.sql.DriverManager;
 import java.sql.SQLException;
 
-public class SQLiteStorage<T extends JavaPlugin, D extends DataObject> extends SQLStorage<T, D> {
+public class SQLiteStorage extends SQLStorage {
 
-    public SQLiteStorage(T plugin) {
-        super(plugin);
+    @SafeVarargs
+    public SQLiteStorage(JavaPlugin plugin, Class<? extends DataObject>... dataObjectClasses) {
+        super(plugin, dataObjectClasses);
     }
 
     @Override
-    public SQLiteStorage<T, D> connect() throws SQLException {
+    public final SQLiteStorage connect() throws SQLException {
         if (connection != null && !connection.isClosed()) {
             return this;
         }
         File file = new File(plugin.getDataFolder(), "data.db");
         connection = DriverManager.getConnection("jdbc:sqlite:" + file.getAbsolutePath());
         // Automatically create tables for all DataObject classes
-        createTablesForDataObjects(User.class);
+        if (dataObjectClasses.length > 0) {
+            createTablesForDataObjects(this.dataObjectClasses);
+        }
 
         return this;
     }

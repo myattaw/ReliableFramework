@@ -1,6 +1,7 @@
 package me.rages.reliableframework.storage;
 
 import me.rages.reliableframework.data.DataObject;
+import me.rages.reliableframework.pluginservice.PluginService;
 
 import java.sql.Connection;
 import java.sql.ResultSet;
@@ -8,9 +9,9 @@ import java.sql.SQLException;
 import java.util.Map;
 import java.util.UUID;
 
-public interface Database<D extends DataObject> {
+public interface Database {
 
-    SQLStorage<?, D> connect() throws SQLException;
+    SQLStorage connect() throws SQLException;
 
     void disconnect() throws SQLException;
 
@@ -18,7 +19,7 @@ public interface Database<D extends DataObject> {
 
     void addColumn(String tableName, String columnDefinition) throws SQLException;
 
-    void insert(String tableName, D dataObject) throws SQLException;
+    void insert(String tableName, DataObject dataObject) throws SQLException;
 
     ResultSet query(String query, Object... params) throws SQLException;
 
@@ -30,9 +31,9 @@ public interface Database<D extends DataObject> {
 
     boolean columnExists(String tableName, String columnName) throws SQLException;
 
-    D load(Map.Entry<String, Object> identifier, Class<D> clazz) throws SQLException;
+    <T extends DataObject> T load(Map.Entry<String, Object> identifier, Class<? extends DataObject> clazz) throws SQLException;
 
-    void save(D dataObject) throws SQLException;
+    void save(DataObject dataObject) throws SQLException;
 
-    String getTableName(Class<D> clazz);
+    String getTableName(Class<? extends DataObject> clazz);
 }

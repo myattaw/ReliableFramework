@@ -12,17 +12,20 @@ import java.sql.*;
 import java.util.*;
 import java.util.stream.Collectors;
 
-public abstract class SQLStorage<T extends JavaPlugin, D extends DataObject> implements Database<D> {
+public abstract class SQLStorage implements Database {
 
-    protected final T plugin;
+    protected final JavaPlugin plugin;
     protected Connection connection;
+    protected Class<? extends DataObject>[] dataObjectClasses;
 
-    public SQLStorage(T plugin) {
+    @SafeVarargs
+    public SQLStorage(JavaPlugin plugin, Class<? extends DataObject>... dataObjectClasses) {
         this.plugin = plugin;
+        this.dataObjectClasses = dataObjectClasses;
     }
 
     @Override
-    public abstract SQLStorage<T, D> connect() throws SQLException;
+    public abstract SQLStorage connect() throws SQLException;
 
     @Override
     public void disconnect() throws SQLException {
@@ -58,18 +61,34 @@ public abstract class SQLStorage<T extends JavaPlugin, D extends DataObject> imp
     }
 
     @Override
-    public void insert(String tableName, D dataObject) throws SQLException {
-        Map<String, Object> data = dataObject.getData();
-        String columns = String.join(",", data.keySet());
-        String values = String.join(",", Collections.nCopies(data.size(), "?"));
+    public void insert(String tableName, DataObject dataObject) throws SQLException {
+        StringBuilder columns = new StringBuilder();
+        StringBuilder values = new StringBuilder();
+        List<Object> params = new ArrayList<>();
+
+        for (Field field : dataObject.getClass().getDeclaredFields()) {
+            if (field.isAnnotationPresent(Column.class)) {
+                field.setAccessible(true);
+                columns.append(field.getName()).append(",");
+                values.append("?,");
+                try {
+                    params.add(field.get(dataObject));
+                } catch (IllegalAccessException e) {
+                    throw new SQLException("Failed to access field value", e);
+                }
+            }
+        }
+
+        columns.deleteCharAt(columns.length() - 1);
+        values.deleteCharAt(values.length() - 1);
 
         String sql = "INSERT INTO " + tableName + " (" + columns + ") VALUES (" + values + ")";
-        try (PreparedStatement ps = connection.prepareStatement(sql)) {
+        try (PreparedStatement preparedStatement = connection.prepareStatement(sql)) {
             int index = 1;
-            for (Object value : data.values()) {
-                ps.setObject(index++, value);
+            for (Object value : params) {
+                preparedStatement.setObject(index++, value);
             }
-            ps.executeUpdate();
+            preparedStatement.executeUpdate();
         }
     }
 
@@ -145,21 +164,23 @@ public abstract class SQLStorage<T extends JavaPlugin, D extends DataObject> imp
         }
     }
 
+
     @Override
-    public D load(Map.Entry<String, Object> identifier, Class<D> clazz) throws SQLException {
+    public <T extends DataObject> T load(Map.Entry<String, Object> identifier, Class<? extends DataObject> clazz) throws SQLException {
         String tableName = getTableName(clazz);
         String sql = "SELECT * FROM " + tableName + " WHERE " + identifier.getKey() + " = ?";
         try (ResultSet rs = query(sql, identifier.getValue())) {
             if (rs.next()) {
-                D dataObject = createDataObjectInstance(clazz);
+                DataObject dataObject = createDataObjectInstance(clazz);
                 for (Field field : clazz.getDeclaredFields()) {
                     if (field.isAnnotationPresent(Column.class)) {
                         field.setAccessible(true);
+                        System.out.println(field.getName() + ":" + rs.getObject(field.getName()));
                         field.set(dataObject, rs.getObject(field.getName()));
                     }
                 }
                 fillDataObjectFromResultSet(dataObject, rs);
-                return dataObject;
+                return (T) dataObject;
             }
         } catch (ReflectiveOperationException e) {
             throw new SQLException("Failed to load data object", e);
@@ -182,7 +203,7 @@ public abstract class SQLStorage<T extends JavaPlugin, D extends DataObject> imp
     }
 
     @Override
-    public void save(D dataObject) throws SQLException {
+    public void save(DataObject dataObject) throws SQLException {
         Map<String, Object> data = dataObject.getData();
         Map.Entry<String, Object> idField = getIdField(dataObject);
 
@@ -191,13 +212,13 @@ public abstract class SQLStorage<T extends JavaPlugin, D extends DataObject> imp
         }
 
         int rowsAffected = updateAndReturnAffectedRows(
-                getTableName((Class<D>) dataObject.getClass()),
+                getTableName(dataObject.getClass()),
                 data, idField.getKey() + " = ?", idField.getValue()
         );
 
         if (rowsAffected == 0) {
             data.put(idField.getKey(), idField.getValue());
-            insert(getTableName((Class<D>) dataObject.getClass()), dataObject);
+            insert(getTableName(dataObject.getClass()), dataObject);
         }
     }
 
@@ -206,7 +227,7 @@ public abstract class SQLStorage<T extends JavaPlugin, D extends DataObject> imp
             if (field.isAnnotationPresent(Id.class)) {
                 field.setAccessible(true);
                 try {
-                    return new AbstractMap.SimpleEntry<>(field.getName(), field.get(dataObject));
+                    return Map.entry(field.getName(), field.get(dataObject));
                 } catch (IllegalAccessException e) {
                     throw new SQLException("Failed to access @Id field value", e);
                 }
@@ -231,7 +252,7 @@ public abstract class SQLStorage<T extends JavaPlugin, D extends DataObject> imp
     }
 
     @Override
-    public String getTableName(Class<D> clazz) {
+    public String getTableName(Class<? extends DataObject> clazz) {
         if (clazz.isAnnotationPresent(Table.class)) {
             Table table = clazz.getAnnotation(Table.class);
             return table.name();
@@ -241,7 +262,7 @@ public abstract class SQLStorage<T extends JavaPlugin, D extends DataObject> imp
 
     public void createTablesForDataObjects(Class<? extends DataObject>... dataObjectClasses) throws SQLException {
         for (Class<? extends DataObject> dataObjectClass : dataObjectClasses) {
-            String tableName = getTableName((Class<D>) dataObjectClass);
+            String tableName = getTableName(dataObjectClass);
             Map<String, String> columns = new HashMap<>();
             for (Field field : dataObjectClass.getDeclaredFields()) {
                 if (field.isAnnotationPresent(Column.class)) {

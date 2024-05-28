@@ -1,10 +1,9 @@
 package me.rages.reliableframework;
 
 import lombok.SneakyThrows;
-import me.rages.reliableframework.data.DataObject;
+import me.rages.reliableframework.data.User;
 import me.rages.reliableframework.storage.SQLStorage;
 import me.rages.reliableframework.storage.impl.SQLiteStorage;
-import me.rages.reliableframework.data.User;
 import org.bukkit.entity.Player;
 import org.bukkit.event.EventHandler;
 import org.bukkit.event.Listener;
@@ -12,7 +11,7 @@ import org.bukkit.event.player.PlayerJoinEvent;
 import org.bukkit.plugin.java.JavaPlugin;
 
 import java.sql.SQLException;
-import java.util.*;
+import java.util.Map;
 
 public class ReliableFramework extends JavaPlugin implements Listener {
 
@@ -22,7 +21,9 @@ public class ReliableFramework extends JavaPlugin implements Listener {
     @SneakyThrows
     public void onEnable() {
         saveDefaultConfig();
-        this.storage = new SQLiteStorage<>(this).connect();
+        //TODO: Read configuration file later to determine what storage system to use.
+        // Possibly remove 'Class<? extends DataObject>... dataObjectClasses' and use reflections.
+        this.storage = new SQLiteStorage(this, User.class).connect();
         getServer().getPluginManager().registerEvents(this, this);
     }
 
@@ -40,7 +41,7 @@ public class ReliableFramework extends JavaPlugin implements Listener {
         Player player = event.getPlayer();
 
         // Load the user from the database
-        User user = (User) storage.load(Map.entry("uuid", player.getUniqueId()), User.class);
+        User user = storage.load(Map.entry("uuid", player.getUniqueId()), User.class);
 
         // If the user doesn't exist, create a new one
         if (user == null) {
