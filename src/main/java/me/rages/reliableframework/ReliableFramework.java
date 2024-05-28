@@ -1,6 +1,7 @@
 package me.rages.reliableframework;
 
 import lombok.SneakyThrows;
+import me.rages.reliableframework.data.DataObject;
 import me.rages.reliableframework.storage.SQLStorage;
 import me.rages.reliableframework.storage.impl.SQLiteStorage;
 import me.rages.reliableframework.data.User;

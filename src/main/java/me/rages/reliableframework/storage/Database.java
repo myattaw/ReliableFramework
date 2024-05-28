@@ -34,4 +34,5 @@ public interface Database<D extends DataObject> {
 
     void save(D dataObject) throws SQLException;
 
+    String getTableName(Class<D> clazz);
 }

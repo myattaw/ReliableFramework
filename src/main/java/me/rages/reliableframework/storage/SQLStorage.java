@@ -1,8 +1,9 @@
 package me.rages.reliableframework.storage;
 
-import me.rages.reliableframework.data.Column;
+import me.rages.reliableframework.data.annotations.Column;
 import me.rages.reliableframework.data.DataObject;
-import me.rages.reliableframework.data.Id;
+import me.rages.reliableframework.data.annotations.Id;
+import me.rages.reliableframework.data.annotations.Table;
 import org.bukkit.plugin.java.JavaPlugin;
 
 import java.lang.reflect.Constructor;
@@ -229,6 +230,44 @@ public abstract class SQLStorage<T extends JavaPlugin, D extends DataObject> imp
         }
     }
 
-    protected abstract String getTableName(Class<D> clazz);
+    @Override
+    public String getTableName(Class<D> clazz) {
+        if (clazz.isAnnotationPresent(Table.class)) {
+            Table table = clazz.getAnnotation(Table.class);
+            return table.name();
+        }
+        throw new IllegalArgumentException("No @Table annotation found on class: " + clazz.getName());
+    }
+
+    public void createTablesForDataObjects(Class<? extends DataObject>... dataObjectClasses) throws SQLException {
+        for (Class<? extends DataObject> dataObjectClass : dataObjectClasses) {
+            String tableName = getTableName((Class<D>) dataObjectClass);
+            Map<String, String> columns = new HashMap<>();
+            for (Field field : dataObjectClass.getDeclaredFields()) {
+                if (field.isAnnotationPresent(Column.class)) {
+                    columns.put(field.getName(), getColumnType(field.getType()));
+                }
+            }
+            createTable(tableName, columns);
+        }
+    }
+
+    private String getColumnType(Class<?> type) {
+        if (type == Integer.class || type == Long.class) {
+            return "INTEGER";
+        } else if (type == String.class) {
+            return "TEXT";
+        } else if (type == Boolean.class) {
+            return "BOOLEAN";
+        } else if (type == Double.class || type == Float.class) {
+            return "REAL";
+        } else if (type == java.util.Date.class) {
+            return "INTEGER";
+        } else if (type == byte[].class) {
+            return "BLOB";
+        } else {
+            throw new IllegalArgumentException("Unsupported data type: " + type.getName());
+        }
+    }
 
 }
