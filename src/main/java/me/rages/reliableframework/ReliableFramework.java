@@ -60,5 +60,4 @@ public class ReliableFramework extends JavaPlugin implements Listener {
         storage.save(user);
     }
 
-
 }

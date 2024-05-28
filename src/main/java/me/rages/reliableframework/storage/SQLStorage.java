@@ -141,29 +141,10 @@ public abstract class SQLStorage implements Database {
 
     public void ensureColumnExists(String tableName, String columnName, Object value) throws SQLException {
         if (!columnExists(tableName, columnName)) {
-            String columnType = getColumnType(value);
+            String columnType = getColumnType(value.getClass());
             addColumn(tableName, columnName + " " + columnType);
         }
     }
-
-    private String getColumnType(Object value) {
-        if (value instanceof Integer || value instanceof Long) {
-            return "INTEGER DEFAULT 0";
-        } else if (value instanceof String) {
-            return "TEXT";
-        } else if (value instanceof Boolean) {
-            return "BOOLEAN DEFAULT FALSE";
-        } else if (value instanceof Double || value instanceof Float) {
-            return "REAL";
-        } else if (value instanceof java.util.Date) {
-            return "INTEGER DEFAULT 0";
-        } else if (value instanceof byte[]) {
-            return "BLOB";
-        } else {
-            throw new IllegalArgumentException("Unsupported data type: " + value.getClass().getName());
-        }
-    }
-
 
     @Override
     public <T extends DataObject> T load(Map.Entry<String, Object> identifier, Class<? extends DataObject> clazz) throws SQLException {
@@ -175,7 +156,6 @@ public abstract class SQLStorage implements Database {
                 for (Field field : clazz.getDeclaredFields()) {
                     if (field.isAnnotationPresent(Column.class)) {
                         field.setAccessible(true);
-                        System.out.println(field.getName() + ":" + rs.getObject(field.getName()));
                         field.set(dataObject, rs.getObject(field.getName()));
                     }
                 }
@@ -260,7 +240,8 @@ public abstract class SQLStorage implements Database {
         throw new IllegalArgumentException("No @Table annotation found on class: " + clazz.getName());
     }
 
-    public void createTablesForDataObjects(Class<? extends DataObject>... dataObjectClasses) throws SQLException {
+    @SafeVarargs
+    public final void createTablesForDataObjects(Class<? extends DataObject>... dataObjectClasses) throws SQLException {
         for (Class<? extends DataObject> dataObjectClass : dataObjectClasses) {
             String tableName = getTableName(dataObjectClass);
             Map<String, String> columns = new HashMap<>();
