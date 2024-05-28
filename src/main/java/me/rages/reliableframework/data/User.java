@@ -35,11 +35,15 @@ public class User implements DataObject {
     }
 
     @Override
-    public void set(String key, Object value) throws SQLException {
-        if (!data.containsKey(key)) {
-            storage.ensureColumnExists("users", key, value);
+    public void set(String key, Object value) {
+        try {
+            if (!data.containsKey(key)) {
+                storage.ensureColumnExists("users", key, value);
+            }
+            data.put(key, value);
+        } catch (SQLException e) {
+            throw new RuntimeException("Failed to set value for key: " + key, e);
         }
-        data.put(key, value);
     }
 
 }

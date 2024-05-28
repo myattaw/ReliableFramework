@@ -1,7 +1,7 @@
 package me.rages.reliableframework.storage;
 
-import me.rages.reliableframework.data.annotations.Column;
 import me.rages.reliableframework.data.DataObject;
+import me.rages.reliableframework.data.annotations.Column;
 import me.rages.reliableframework.data.annotations.Id;
 import me.rages.reliableframework.data.annotations.Table;
 import org.bukkit.plugin.java.JavaPlugin;
@@ -9,24 +9,52 @@ import org.bukkit.plugin.java.JavaPlugin;
 import java.lang.reflect.Constructor;
 import java.lang.reflect.Field;
 import java.sql.*;
-import java.util.*;
+import java.util.ArrayList;
+import java.util.HashMap;
+import java.util.List;
+import java.util.Map;
+import java.util.concurrent.CompletableFuture;
 import java.util.stream.Collectors;
 
+/**
+ * Abstract class for SQL storage implementation in a Minecraft plugin.
+ * This class provides basic functionalities to connect, disconnect,
+ * and interact with an SQL database, as well as managing data objects.
+ */
 public abstract class SQLStorage implements Database {
 
     protected final JavaPlugin plugin;
     protected Connection connection;
     protected Class<? extends DataObject>[] dataObjectClasses;
 
+    /**
+     * Constructs an SQLStorage instance.
+     *
+     * @param plugin            the JavaPlugin instance
+     * @param dataObjectClasses the data object classes managed by this storage
+     */
     @SafeVarargs
     public SQLStorage(JavaPlugin plugin, Class<? extends DataObject>... dataObjectClasses) {
         this.plugin = plugin;
         this.dataObjectClasses = dataObjectClasses;
     }
 
+
+    /**
+     * Connects to the database.
+     *
+     * @return the SQLStorage instance
+     * @throws SQLException if a database access error occurs
+     */
     @Override
     public abstract SQLStorage connect() throws SQLException;
 
+
+    /**
+     * Disconnects from the database.
+     *
+     * @throws SQLException if a database access error occurs
+     */
     @Override
     public void disconnect() throws SQLException {
         if (connection != null && !connection.isClosed()) {
@@ -34,11 +62,23 @@ public abstract class SQLStorage implements Database {
         }
     }
 
+    /**
+     * Gets the current database connection.
+     *
+     * @return the database connection
+     */
     @Override
     public Connection getConnection() {
         return connection;
     }
 
+    /**
+     * Adds a new column to a table.
+     *
+     * @param tableName        the name of the table
+     * @param columnDefinition the column definition
+     * @throws SQLException if a database access error occurs
+     */
     @Override
     public void addColumn(String tableName, String columnDefinition) throws SQLException {
         String sql = "ALTER TABLE " + tableName + " ADD COLUMN " + columnDefinition;
@@ -47,6 +87,14 @@ public abstract class SQLStorage implements Database {
         }
     }
 
+    /**
+     * Checks if a column exists in a table.
+     *
+     * @param tableName  the name of the table
+     * @param columnName the name of the column
+     * @return true if the column exists, false otherwise
+     * @throws SQLException if a database access error occurs
+     */
     @Override
     public boolean columnExists(String tableName, String columnName) throws SQLException {
         String query = "PRAGMA table_info(" + tableName + ")";
@@ -60,6 +108,13 @@ public abstract class SQLStorage implements Database {
         return false;
     }
 
+    /**
+     * Inserts a data object into a table.
+     *
+     * @param tableName  the name of the table
+     * @param dataObject the data object to insert
+     * @throws SQLException if a database access error occurs
+     */
     @Override
     public void insert(String tableName, DataObject dataObject) throws SQLException {
         StringBuilder columns = new StringBuilder();
@@ -92,6 +147,14 @@ public abstract class SQLStorage implements Database {
         }
     }
 
+    /**
+     * Executes a query on the database.
+     *
+     * @param query  the query string
+     * @param params the query parameters
+     * @return the result set of the query
+     * @throws SQLException if a database access error occurs
+     */
     @Override
     public ResultSet query(String query, Object... params) throws SQLException {
         PreparedStatement ps = connection.prepareStatement(query);
@@ -101,6 +164,15 @@ public abstract class SQLStorage implements Database {
         return ps.executeQuery();
     }
 
+    /**
+     * Updates data in a table.
+     *
+     * @param tableName   the name of the table
+     * @param data        the data to update
+     * @param whereClause the where clause to specify which rows to update
+     * @param whereParams the parameters for the where clause
+     * @throws SQLException if a database access error occurs
+     */
     @Override
     public void update(String tableName, Map<String, Object> data, String whereClause, Object... whereParams) throws SQLException {
         String setClause = String.join(" = ?, ", data.keySet()) + " = ?";
@@ -117,6 +189,14 @@ public abstract class SQLStorage implements Database {
         }
     }
 
+    /**
+     * Deletes data from a table.
+     *
+     * @param tableName   the name of the table
+     * @param whereClause the where clause to specify which rows to delete
+     * @param whereParams the parameters for the where clause
+     * @throws SQLException if a database access error occurs
+     */
     @Override
     public void delete(String tableName, String whereClause, Object... whereParams) throws SQLException {
         String sql = "DELETE FROM " + tableName + " WHERE " + whereClause;
@@ -128,6 +208,14 @@ public abstract class SQLStorage implements Database {
         }
     }
 
+
+    /**
+     * Creates a table with the specified columns.
+     *
+     * @param tableName the name of the table
+     * @param columns   a map of column names and their data types
+     * @throws SQLException if a database access error occurs
+     */
     @Override
     public void createTable(String tableName, Map<String, String> columns) throws SQLException {
         String columnDefinitions = columns.entrySet().stream()
@@ -139,6 +227,14 @@ public abstract class SQLStorage implements Database {
         }
     }
 
+    /**
+     * Ensures a column exists in a table. If it doesn't, it adds the column.
+     *
+     * @param tableName  the name of the table
+     * @param columnName the name of the column
+     * @param value      the sample value to determine the column type
+     * @throws SQLException if a database access error occurs
+     */
     public void ensureColumnExists(String tableName, String columnName, Object value) throws SQLException {
         if (!columnExists(tableName, columnName)) {
             String columnType = getColumnType(value.getClass());
@@ -146,33 +242,61 @@ public abstract class SQLStorage implements Database {
         }
     }
 
-    @Override
-    public <T extends DataObject> T load(Map.Entry<String, Object> identifier, Class<? extends DataObject> clazz) throws SQLException {
-        String tableName = getTableName(clazz);
-        String sql = "SELECT * FROM " + tableName + " WHERE " + identifier.getKey() + " = ?";
-        try (ResultSet rs = query(sql, identifier.getValue())) {
-            if (rs.next()) {
-                DataObject dataObject = createDataObjectInstance(clazz);
-                for (Field field : clazz.getDeclaredFields()) {
-                    if (field.isAnnotationPresent(Column.class)) {
-                        field.setAccessible(true);
-                        field.set(dataObject, rs.getObject(field.getName()));
+    /**
+     * Loads a data object from the database asynchronously.
+     *
+     * @param identifier the identifier to query the data object
+     * @param clazz      the class of the data object
+     * @param <T>        the type of the data object
+     * @return a CompletableFuture of the data object
+     */
+    public <T extends DataObject> CompletableFuture<T> load(
+            Map.Entry<String, Object> identifier,
+            Class<T> clazz
+    ) {
+        return CompletableFuture.supplyAsync(() -> {
+            String tableName = getTableName(clazz);
+            String sql = "SELECT * FROM " + tableName + " WHERE " + identifier.getKey() + " = ?";
+            try (ResultSet rs = query(sql, identifier.getValue())) {
+                if (rs.next()) {
+                    T dataObject = createDataObjectInstance(clazz);
+                    for (Field field : clazz.getDeclaredFields()) {
+                        if (field.isAnnotationPresent(Column.class)) {
+                            field.setAccessible(true);
+                            field.set(dataObject, rs.getObject(field.getName()));
+                        }
                     }
+                    fillDataObjectFromResultSet(dataObject, rs);
+                    return dataObject;
                 }
-                fillDataObjectFromResultSet(dataObject, rs);
-                return (T) dataObject;
+            } catch (SQLException | ReflectiveOperationException e) {
+                throw new RuntimeException("Failed to load data object", e);
             }
-        } catch (ReflectiveOperationException e) {
-            throw new SQLException("Failed to load data object", e);
-        }
-        return null;
+            return null;
+        });
     }
 
+
+    /**
+     * Creates an instance of a data object.
+     *
+     * @param clazz the class of the data object
+     * @param <D>   the type of the data object
+     * @return the data object instance
+     * @throws ReflectiveOperationException if an error occurs during instantiation
+     */
     private <D extends DataObject> D createDataObjectInstance(Class<D> clazz) throws ReflectiveOperationException {
         Constructor<D> constructor = clazz.getConstructor(SQLStorage.class);
         return constructor.newInstance(this);
     }
 
+    /**
+     * Fills a data object with data from a result set.
+     *
+     * @param dataObject the data object to fill
+     * @param rs         the result set
+     * @throws SQLException if a database access error occurs
+     */
     private void fillDataObjectFromResultSet(DataObject dataObject, ResultSet rs) throws SQLException {
         ResultSetMetaData metaData = rs.getMetaData();
         int columnCount = metaData.getColumnCount();
@@ -182,26 +306,45 @@ public abstract class SQLStorage implements Database {
         }
     }
 
-    @Override
-    public void save(DataObject dataObject) throws SQLException {
-        Map<String, Object> data = dataObject.getData();
-        Map.Entry<String, Object> idField = getIdField(dataObject);
+    /**
+     * Saves a data object to the database asynchronously.
+     *
+     * @param dataObject the data object to save
+     * @return a CompletableFuture representing the save operation
+     */
+    public CompletableFuture<Void> save(DataObject dataObject) {
+        return CompletableFuture.runAsync(() -> {
+            try {
+                Map<String, Object> data = dataObject.getData();
+                Map.Entry<String, Object> idField = getIdField(dataObject);
 
-        if (idField == null) {
-            throw new SQLException("No @Id field found in data object");
-        }
+                if (idField == null) {
+                    throw new SQLException("No @Id field found in data object");
+                }
 
-        int rowsAffected = updateAndReturnAffectedRows(
-                getTableName(dataObject.getClass()),
-                data, idField.getKey() + " = ?", idField.getValue()
-        );
+                int rowsAffected = updateAndReturnAffectedRows(
+                        getTableName(dataObject.getClass()),
+                        data, idField.getKey() + " = ?", idField.getValue()
+                );
 
-        if (rowsAffected == 0) {
-            data.put(idField.getKey(), idField.getValue());
-            insert(getTableName(dataObject.getClass()), dataObject);
-        }
+                if (rowsAffected == 0) {
+                    data.put(idField.getKey(), idField.getValue());
+                    insert(getTableName(dataObject.getClass()), dataObject);
+                }
+            } catch (SQLException e) {
+                throw new RuntimeException("Failed to save data object", e);
+            }
+        });
     }
 
+    /**
+     * Gets the ID field from a data object.
+     *
+     * @param dataObject the data object
+     * @param <D>        the type of the data object
+     * @return the ID field as a map entry
+     * @throws SQLException if a database access error occurs
+     */
     private <D extends DataObject> Map.Entry<String, Object> getIdField(D dataObject) throws SQLException {
         for (Field field : dataObject.getClass().getDeclaredFields()) {
             if (field.isAnnotationPresent(Id.class)) {
@@ -216,6 +359,16 @@ public abstract class SQLStorage implements Database {
         return null;
     }
 
+    /**
+     * Updates data and returns the number of affected rows.
+     *
+     * @param tableName   the name of the table
+     * @param data        the data to update
+     * @param whereClause the where clause to specify which rows to update
+     * @param whereParams the parameters for the where clause
+     * @return the number of affected rows
+     * @throws SQLException if a database access error occurs
+     */
     private int updateAndReturnAffectedRows(String tableName, Map<String, Object> data, String whereClause, Object... whereParams) throws SQLException {
         String setClause = data.keySet().stream().map(key -> key + " = ?").collect(Collectors.joining(", "));
         String sql = "UPDATE " + tableName + " SET " + setClause + " WHERE " + whereClause;
@@ -231,6 +384,13 @@ public abstract class SQLStorage implements Database {
         }
     }
 
+    /**
+     * Gets the table name for a data object class.
+     *
+     * @param clazz the class of the data object
+     * @return the table name
+     * @throws IllegalArgumentException if the class does not have a @Table annotation
+     */
     @Override
     public String getTableName(Class<? extends DataObject> clazz) {
         if (clazz.isAnnotationPresent(Table.class)) {
@@ -240,6 +400,13 @@ public abstract class SQLStorage implements Database {
         throw new IllegalArgumentException("No @Table annotation found on class: " + clazz.getName());
     }
 
+
+    /**
+     * Creates tables for the specified data object classes.
+     *
+     * @param dataObjectClasses the data object classes
+     * @throws SQLException if a database access error occurs
+     */
     @SafeVarargs
     public final void createTablesForDataObjects(Class<? extends DataObject>... dataObjectClasses) throws SQLException {
         for (Class<? extends DataObject> dataObjectClass : dataObjectClasses) {
@@ -254,6 +421,13 @@ public abstract class SQLStorage implements Database {
         }
     }
 
+    /**
+     * Gets the SQL column type for a Java class.
+     *
+     * @param type the Java class
+     * @return the SQL column type
+     * @throws IllegalArgumentException if the data type is unsupported
+     */
     private String getColumnType(Class<?> type) {
         if (type == Integer.class || type == Long.class) {
             return "INTEGER";

@@ -27,6 +27,7 @@ public class ReliableFramework extends JavaPlugin implements Listener {
         getServer().getPluginManager().registerEvents(this, this);
     }
 
+
     @Override
     public void onDisable() {
         try {
@@ -37,27 +38,38 @@ public class ReliableFramework extends JavaPlugin implements Listener {
     }
 
     @EventHandler
-    public void onJoin(PlayerJoinEvent event) throws SQLException {
+    public void onJoin(PlayerJoinEvent event) {
         Player player = event.getPlayer();
 
-        // Load the user from the database
-        User user = storage.load(Map.entry("uuid", player.getUniqueId()), User.class);
+        // Load the user from the database asynchronously
+        storage.load(Map.entry("uuid", player.getUniqueId()), User.class)
+                .thenApplyAsync(user -> {
+                    if (user == null) {
+                        // Create a new user if it doesn't exist
+                        user = new User(storage);
+                        user.setUuid(player.getUniqueId().toString());
+                        user.setName(player.getName());
+                        System.out.println(String.format("Created the user: [%s, %s]", user.getName(), user.getUuid()));
+                    } else {
+                        System.out.println(String.format("Loaded the user: [%s, %s]", user.getName(), user.getUuid()));
+                    }
+                    return user;
+                }).thenComposeAsync(user -> {
+                    // Get the current join count, increment it, and save it back
+                    int totalJoins = user.get("join_count", Integer.class).orElse(0) + 1;
+                    user.set("join_count", totalJoins);
+                    System.out.println(String.format("%s has joined the server %d times.", user.getName(), totalJoins));
 
-        // If the user doesn't exist, create a new one
-        if (user == null) {
-            user = new User(storage);
-            user.setUuid(player.getUniqueId().toString());
-            user.setName(player.getName());
-            System.out.println(String.format("Created the user: [%s, %s]", user.getName(), user.getUuid()));
-        } else {
-            System.out.println(String.format("Loaded the user: [%s, %s]", user.getName(), user.getUuid()));
-        }
-
-        // Get the current join count, increment it, and save it back
-        int totalJoins = user.get("join_count", Integer.class).orElse(0) + 1;
-        user.set("join_count", totalJoins);
-        System.out.println(String.format("%s has joined the server %d times.", user.getName(), totalJoins));
-        storage.save(user);
+                    // Save the user asynchronously
+                    return storage.save(user).thenApplyAsync(result -> {
+                        // Additional actions after saving, if necessary
+                        System.out.println(String.format("User [%s, %s] saved successfully.", user.getName(), user.getUuid()));
+                        return result;
+                    });
+                }).exceptionally(ex -> {
+                    ex.printStackTrace();
+                    return null;
+                });
     }
 
 }
