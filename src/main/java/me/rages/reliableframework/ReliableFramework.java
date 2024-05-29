@@ -1,9 +1,12 @@
 package me.rages.reliableframework;
 
 import lombok.SneakyThrows;
+import me.rages.reliableframework.data.Entity;
 import me.rages.reliableframework.data.User;
 import me.rages.reliableframework.storage.SQLStorage;
 import me.rages.reliableframework.storage.impl.SQLiteStorage;
+import org.bukkit.Bukkit;
+import org.bukkit.ChatColor;
 import org.bukkit.entity.Player;
 import org.bukkit.event.EventHandler;
 import org.bukkit.event.Listener;
@@ -11,7 +14,6 @@ import org.bukkit.event.player.PlayerJoinEvent;
 import org.bukkit.plugin.java.JavaPlugin;
 
 import java.sql.SQLException;
-import java.util.Map;
 
 public class ReliableFramework extends JavaPlugin implements Listener {
 
@@ -42,31 +44,52 @@ public class ReliableFramework extends JavaPlugin implements Listener {
         Player player = event.getPlayer();
 
         // Load the user from the database asynchronously
-        storage.load(Map.entry("uuid", player.getUniqueId()), User.class)
+        storage.load(Entity.of("uuid", player.getUniqueId()), User.class)
                 .thenApplyAsync(user -> {
                     if (user == null) {
                         // Create a new user if it doesn't exist
                         user = new User(storage);
                         user.setUuid(player.getUniqueId().toString());
                         user.setName(player.getName());
-                        System.out.println(String.format("Created the user: [%s, %s]", user.getName(), user.getUuid()));
+                        Bukkit.getConsoleSender().sendMessage(
+                                ChatColor.YELLOW + String.format("Created the user: [%s, %s]",
+                                        user.getName(), user.getUuid())
+                        );
                     } else {
-                        System.out.println(String.format("Loaded the user: [%s, %s]", user.getName(), user.getUuid()));
+                        Bukkit.getConsoleSender().sendMessage(
+                                ChatColor.GOLD + String.format("Loaded the user: [%s, %s]",
+                                        user.getName(), user.getUuid())
+                        );
                     }
                     return user;
-                }).thenComposeAsync(user -> {
+                })
+                .thenComposeAsync(user -> {
                     // Get the current join count, increment it, and save it back
                     int totalJoins = user.get("join_count", Integer.class).orElse(0) + 1;
                     user.set("join_count", totalJoins);
-                    System.out.println(String.format("%s has joined the server %d times.", user.getName(), totalJoins));
+
+                    Bukkit.getConsoleSender().sendMessage(
+                            ChatColor.BLUE + String.format("%s has joined the server %d times.",
+                                    user.getName(),
+                                    totalJoins
+                            )
+                    );
+
+                    //TODO: issue being caused right now is that user.set() is being called after
+                    // storage.save() because it takes time to create columns
 
                     // Save the user asynchronously
                     return storage.save(user).thenApplyAsync(result -> {
                         // Additional actions after saving, if necessary
-                        System.out.println(String.format("User [%s, %s] saved successfully.", user.getName(), user.getUuid()));
+                        Bukkit.getConsoleSender().sendMessage(
+                                ChatColor.GREEN + String.format("User [%s, %s] saved successfully.",
+                                                user.getName(),
+                                                user.getUuid())
+                        );
                         return result;
                     });
-                }).exceptionally(ex -> {
+                })
+                .exceptionally(ex -> {
                     ex.printStackTrace();
                     return null;
                 });

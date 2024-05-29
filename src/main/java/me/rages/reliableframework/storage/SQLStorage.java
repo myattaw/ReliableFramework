@@ -1,6 +1,7 @@
 package me.rages.reliableframework.storage;
 
 import me.rages.reliableframework.data.DataObject;
+import me.rages.reliableframework.data.Entity;
 import me.rages.reliableframework.data.annotations.Column;
 import me.rages.reliableframework.data.annotations.Id;
 import me.rages.reliableframework.data.annotations.Table;
@@ -84,6 +85,7 @@ public abstract class SQLStorage implements Database {
         String sql = "ALTER TABLE " + tableName + " ADD COLUMN " + columnDefinition;
         try (Statement stmt = connection.createStatement()) {
             stmt.execute(sql);
+            System.out.println("Created column");
         }
     }
 
@@ -121,6 +123,7 @@ public abstract class SQLStorage implements Database {
         StringBuilder values = new StringBuilder();
         List<Object> params = new ArrayList<>();
 
+        // Insert accessible fields into the DataObject table
         for (Field field : dataObject.getClass().getDeclaredFields()) {
             if (field.isAnnotationPresent(Column.class)) {
                 field.setAccessible(true);
@@ -132,6 +135,13 @@ public abstract class SQLStorage implements Database {
                     throw new SQLException("Failed to access field value", e);
                 }
             }
+        }
+
+        // Insert extra data values into the DataObject table
+        for (Map.Entry<String, Object> data : dataObject.getData().entrySet()) {
+            columns.append(data.getKey()).append(",");
+            values.append("?,");
+            params.add(data.getValue());
         }
 
         columns.deleteCharAt(columns.length() - 1);
@@ -239,25 +249,27 @@ public abstract class SQLStorage implements Database {
         if (!columnExists(tableName, columnName)) {
             String columnType = getColumnType(value.getClass());
             addColumn(tableName, columnName + " " + columnType);
+            System.out.println(String.format("Added %s column to %s table", columnName, tableName));
         }
     }
 
     /**
      * Loads a data object from the database asynchronously.
      *
-     * @param identifier the identifier to query the data object
+     * @param entry      the identifier to query the data object
      * @param clazz      the class of the data object
      * @param <T>        the type of the data object
      * @return a CompletableFuture of the data object
      */
+    @Override
     public <T extends DataObject> CompletableFuture<T> load(
-            Map.Entry<String, Object> identifier,
+            Entity.EntityEntry entry,
             Class<T> clazz
     ) {
         return CompletableFuture.supplyAsync(() -> {
             String tableName = getTableName(clazz);
-            String sql = "SELECT * FROM " + tableName + " WHERE " + identifier.getKey() + " = ?";
-            try (ResultSet rs = query(sql, identifier.getValue())) {
+            String sql = "SELECT * FROM " + tableName + " WHERE " + entry.getColumnName() + " = ?";
+            try (ResultSet rs = query(sql, entry.getValue())) {
                 if (rs.next()) {
                     T dataObject = createDataObjectInstance(clazz);
                     for (Field field : clazz.getDeclaredFields()) {
@@ -316,21 +328,23 @@ public abstract class SQLStorage implements Database {
         return CompletableFuture.runAsync(() -> {
             try {
                 Map<String, Object> data = dataObject.getData();
-                Map.Entry<String, Object> idField = getIdField(dataObject);
+                Entity.EntityEntry entry = getIdField(dataObject);
 
-                if (idField == null) {
+                if (entry == null) {
                     throw new SQLException("No @Id field found in data object");
                 }
 
+                // Update the data
                 int rowsAffected = updateAndReturnAffectedRows(
                         getTableName(dataObject.getClass()),
-                        data, idField.getKey() + " = ?", idField.getValue()
+                        data, entry.getColumnName() + " = ?", entry.getValue()
                 );
 
+                // If no rows were affected, insert new data
                 if (rowsAffected == 0) {
-                    data.put(idField.getKey(), idField.getValue());
                     insert(getTableName(dataObject.getClass()), dataObject);
                 }
+
             } catch (SQLException e) {
                 throw new RuntimeException("Failed to save data object", e);
             }
@@ -345,12 +359,12 @@ public abstract class SQLStorage implements Database {
      * @return the ID field as a map entry
      * @throws SQLException if a database access error occurs
      */
-    private <D extends DataObject> Map.Entry<String, Object> getIdField(D dataObject) throws SQLException {
+    private <D extends DataObject> Entity.EntityEntry getIdField(D dataObject) throws SQLException {
         for (Field field : dataObject.getClass().getDeclaredFields()) {
             if (field.isAnnotationPresent(Id.class)) {
                 field.setAccessible(true);
                 try {
-                    return Map.entry(field.getName(), field.get(dataObject));
+                    return Entity.of(field.getName(), field.get(dataObject));
                 } catch (IllegalAccessException e) {
                     throw new SQLException("Failed to access @Id field value", e);
                 }

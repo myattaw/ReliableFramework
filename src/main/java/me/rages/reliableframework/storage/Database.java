@@ -1,6 +1,7 @@
 package me.rages.reliableframework.storage;
 
 import me.rages.reliableframework.data.DataObject;
+import me.rages.reliableframework.data.Entity;
 
 import java.sql.Connection;
 import java.sql.ResultSet;
@@ -109,13 +110,13 @@ public interface Database {
     /**
      * Loads a data object from the database asynchronously.
      *
-     * @param identifier the identifier to query the data object
+     * @param entry      the entry to query the data object
      * @param clazz      the class of the data object
      * @param <T>        the type of the data object
      * @return a CompletableFuture of the data object
      */
     <T extends DataObject> CompletableFuture<T> load(
-            Map.Entry<String, Object> identifier,
+            Entity.EntityEntry entry,
             Class<T> clazz
     );
 
