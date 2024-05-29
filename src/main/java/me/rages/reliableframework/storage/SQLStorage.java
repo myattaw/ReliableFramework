@@ -85,7 +85,6 @@ public abstract class SQLStorage implements Database {
         String sql = "ALTER TABLE " + tableName + " ADD COLUMN " + columnDefinition;
         try (Statement stmt = connection.createStatement()) {
             stmt.execute(sql);
-            System.out.println("Created column");
         }
     }
 
@@ -249,7 +248,6 @@ public abstract class SQLStorage implements Database {
         if (!columnExists(tableName, columnName)) {
             String columnType = getColumnType(value.getClass());
             addColumn(tableName, columnName + " " + columnType);
-            System.out.println(String.format("Added %s column to %s table", columnName, tableName));
         }
     }
 
