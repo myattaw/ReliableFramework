@@ -1,0 +1,9 @@
+# valid storages: MySQL, SQLite
+storage:
+  type: SQLite
+  url:
+    address: "localhost:3306"
+    database: "framework"
+    username: "username"
+    password: "password"
+

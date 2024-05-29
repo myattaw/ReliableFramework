@@ -280,7 +280,7 @@ public abstract class SQLStorage implements Database {
                     return dataObject;
                 }
             } catch (SQLException | ReflectiveOperationException e) {
-                throw new RuntimeException("Failed to load data object", e);
+                e.printStackTrace();
             }
             return null;
         });

@@ -2,6 +2,8 @@ package me.rages.reliableframework.data;
 
 import lombok.*;
 
+import java.util.UUID;
+
 
 /**
  * Represents a utility class for creating EntityEntry objects used for searching.
@@ -16,7 +18,7 @@ public class Entity {
      * @return An EntityEntry object representing the search criteria.
      */
     public static EntityEntry of(String columnName, Object value) {
-        return new EntityEntry(columnName, value);
+        return new EntityEntry(columnName, value instanceof UUID ? value.toString() : value);
     }
 
     /**

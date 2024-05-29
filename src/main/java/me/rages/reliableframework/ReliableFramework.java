@@ -4,6 +4,7 @@ import lombok.SneakyThrows;
 import me.rages.reliableframework.data.Entity;
 import me.rages.reliableframework.data.User;
 import me.rages.reliableframework.storage.SQLStorage;
+import me.rages.reliableframework.storage.impl.MySQLStorage;
 import me.rages.reliableframework.storage.impl.SQLiteStorage;
 import org.bukkit.Bukkit;
 import org.bukkit.ChatColor;
@@ -25,7 +26,13 @@ public class ReliableFramework extends JavaPlugin implements Listener {
         saveDefaultConfig();
         //TODO: Read configuration file later to determine what storage system to use.
         // Possibly remove 'Class<? extends DataObject>... dataObjectClasses' and use reflections.
-        this.storage = new SQLiteStorage(this, User.class).connect();
+
+        String dbType = getConfig().getString("storage.type", "SQLite");
+        if (dbType.equals("SQLite")) {
+            this.storage = new SQLiteStorage(this, User.class).connect();
+        } else if (dbType.equals("MySQL")) {
+            this.storage = new MySQLStorage(this, User.class).connect();
+        }
         getServer().getPluginManager().registerEvents(this, this);
     }
 
@@ -42,7 +49,6 @@ public class ReliableFramework extends JavaPlugin implements Listener {
     @EventHandler
     public void onJoin(PlayerJoinEvent event) {
         Player player = event.getPlayer();
-
         // Load the user from the database asynchronously
         storage.load(Entity.of("uuid", player.getUniqueId()), User.class)
                 .thenApplyAsync(user -> {
@@ -52,12 +58,14 @@ public class ReliableFramework extends JavaPlugin implements Listener {
                         user.setUuid(player.getUniqueId().toString());
                         user.setName(player.getName());
                         Bukkit.getConsoleSender().sendMessage(
-                                ChatColor.YELLOW + String.format("Created the user: [%s, %s]",
+                                ChatColor.YELLOW +
+                                        String.format("Created the user: [%s, %s]",
                                         user.getName(), user.getUuid())
                         );
                     } else {
                         Bukkit.getConsoleSender().sendMessage(
-                                ChatColor.GOLD + String.format("Loaded the user: [%s, %s]",
+                                ChatColor.GOLD +
+                                        String.format("Loaded the user: [%s, %s]",
                                         user.getName(), user.getUuid())
                         );
                     }
@@ -69,22 +77,18 @@ public class ReliableFramework extends JavaPlugin implements Listener {
                     user.set("join_count", totalJoins);
 
                     Bukkit.getConsoleSender().sendMessage(
-                            ChatColor.BLUE + String.format("%s has joined the server %d times.",
-                                    user.getName(),
-                                    totalJoins
-                            )
+                            ChatColor.BLUE +
+                                    String.format("%s has joined the server %d times.",
+                                    user.getName(), totalJoins)
                     );
-
-                    //TODO: issue being caused right now is that user.set() is being called after
-                    // storage.save() because it takes time to create columns
 
                     // Save the user asynchronously
                     return storage.save(user).thenApplyAsync(result -> {
                         // Additional actions after saving, if necessary
                         Bukkit.getConsoleSender().sendMessage(
-                                ChatColor.GREEN + String.format("User [%s, %s] saved successfully.",
-                                                user.getName(),
-                                                user.getUuid())
+                                ChatColor.GREEN +
+                                        String.format("User [%s, %s] saved successfully.",
+                                        user.getName(), user.getUuid())
                         );
                         return result;
                     });
