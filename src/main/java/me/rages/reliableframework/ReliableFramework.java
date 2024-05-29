@@ -50,6 +50,12 @@ public class ReliableFramework extends JavaPlugin implements Listener {
     public void onJoin(PlayerJoinEvent event) {
         Player player = event.getPlayer();
         // Load the user from the database asynchronously
+
+        storage.loadAll(User.class).thenComposeAsync(users -> {
+            System.out.println("Loaded Framework Users: " + users.size());
+            return null;
+        });
+
         storage.load(Entity.of("uuid", player.getUniqueId()), User.class)
                 .thenApplyAsync(user -> {
                     if (user == null) {

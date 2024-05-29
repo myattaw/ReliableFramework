@@ -6,6 +6,7 @@ import me.rages.reliableframework.data.Entity;
 import java.sql.Connection;
 import java.sql.ResultSet;
 import java.sql.SQLException;
+import java.util.List;
 import java.util.Map;
 import java.util.concurrent.CompletableFuture;
 
@@ -119,6 +120,15 @@ public interface Database {
             Entity.EntityEntry entry,
             Class<T> clazz
     );
+
+    /**
+     * Load all data object from the database asynchronously.
+     *
+     * @param clazz      the class of the data object
+     * @param <T>        the type of the data object
+     * @return a CompletableFuture of the data object
+     */
+    <T extends DataObject> CompletableFuture<List<T>> loadAll(Class<T> clazz);
 
     /**
      * Saves a data object to the database asynchronously.

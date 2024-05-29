@@ -286,6 +286,38 @@ public abstract class SQLStorage implements Database {
         });
     }
 
+    /**
+     * Loads all data objects from the database asynchronously.
+     *
+     * @param clazz the class of the data objects
+     * @param <T>   the type of the data objects
+     * @return a CompletableFuture of a list of data objects
+     */
+    @Override
+    public <T extends DataObject> CompletableFuture<List<T>> loadAll(Class<T> clazz) {
+        return CompletableFuture.supplyAsync(() -> {
+            List<T> dataObjects = new ArrayList<>();
+            String tableName = getTableName(clazz);
+            String sql = "SELECT * FROM " + tableName;
+            try (ResultSet rs = query(sql)) {
+                while (rs.next()) {
+                    T dataObject = createDataObjectInstance(clazz);
+                    for (Field field : clazz.getDeclaredFields()) {
+                        if (field.isAnnotationPresent(Column.class)) {
+                            field.setAccessible(true);
+                            field.set(dataObject, rs.getObject(field.getName()));
+                        }
+                    }
+                    fillDataObjectFromResultSet(dataObject, rs);
+                    dataObjects.add(dataObject);
+                }
+            } catch (SQLException | ReflectiveOperationException e) {
+                e.printStackTrace();
+            }
+            return dataObjects;
+        });
+    }
+
 
     /**
      * Creates an instance of a data object.
