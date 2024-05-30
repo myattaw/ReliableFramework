@@ -14,7 +14,7 @@ import java.util.Optional;
 @Getter
 @Setter
 @Table(name = "users")
-public class User implements DataObject {
+public class ReliableUser implements DataObject {
 
     @Id
     @Column
@@ -25,25 +25,8 @@ public class User implements DataObject {
     private final Map<String, Object> data = new HashMap<>();
     private final SQLStorage storage;
 
-    public User(SQLStorage storage) {
+    public ReliableUser(SQLStorage storage) {
         this.storage = storage;
-    }
-
-    @Override
-    public <T> Optional<T> get(String key, Class<T> type) {
-        return Optional.ofNullable(type.cast(data.get(key)));
-    }
-
-    @Override
-    public void set(String key, Object value) {
-        try {
-            if (!data.containsKey(key)) {
-                storage.ensureColumnExists("users", key, value);
-            }
-            data.put(key, value);
-        } catch (SQLException e) {
-            throw new RuntimeException("Failed to set value for key: " + key, e);
-        }
     }
 
 }

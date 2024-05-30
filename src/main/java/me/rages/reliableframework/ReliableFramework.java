@@ -2,7 +2,7 @@ package me.rages.reliableframework;
 
 import lombok.SneakyThrows;
 import me.rages.reliableframework.data.Entity;
-import me.rages.reliableframework.data.User;
+import me.rages.reliableframework.data.ReliableUser;
 import me.rages.reliableframework.storage.SQLStorage;
 import me.rages.reliableframework.storage.impl.MySQLStorage;
 import me.rages.reliableframework.storage.impl.SQLiteStorage;
@@ -29,9 +29,9 @@ public class ReliableFramework extends JavaPlugin implements Listener {
 
         String dbType = getConfig().getString("storage.type", "SQLite");
         if (dbType.equals("SQLite")) {
-            this.storage = new SQLiteStorage(this, User.class).connect();
+            this.storage = new SQLiteStorage(this, ReliableUser.class).connect();
         } else if (dbType.equals("MySQL")) {
-            this.storage = new MySQLStorage(this, User.class).connect();
+            this.storage = new MySQLStorage(this, ReliableUser.class).connect();
         }
         getServer().getPluginManager().registerEvents(this, this);
     }
@@ -51,16 +51,16 @@ public class ReliableFramework extends JavaPlugin implements Listener {
         Player player = event.getPlayer();
         // Load the user from the database asynchronously
 
-        storage.loadAll(User.class).thenComposeAsync(users -> {
+        storage.loadAll(ReliableUser.class).thenComposeAsync(users -> {
             System.out.println("Loaded Framework Users: " + users.size());
             return null;
         });
 
-        storage.load(Entity.of("uuid", player.getUniqueId()), User.class)
+        storage.load(Entity.of("uuid", player.getUniqueId()), ReliableUser.class)
                 .thenApplyAsync(user -> {
                     if (user == null) {
                         // Create a new user if it doesn't exist
-                        user = new User(storage);
+                        user = new ReliableUser(storage);
                         user.setUuid(player.getUniqueId().toString());
                         user.setName(player.getName());
                         Bukkit.getConsoleSender().sendMessage(
