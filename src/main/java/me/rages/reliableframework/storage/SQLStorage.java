@@ -10,10 +10,7 @@ import org.bukkit.plugin.java.JavaPlugin;
 import java.lang.reflect.Constructor;
 import java.lang.reflect.Field;
 import java.sql.*;
-import java.util.ArrayList;
-import java.util.HashMap;
-import java.util.List;
-import java.util.Map;
+import java.util.*;
 import java.util.concurrent.CompletableFuture;
 import java.util.stream.Collectors;
 
@@ -125,11 +122,16 @@ public abstract class SQLStorage implements Database {
         // Insert accessible fields into the DataObject table
         for (Field field : dataObject.getClass().getDeclaredFields()) {
             if (field.isAnnotationPresent(Column.class)) {
+                Column column = field.getAnnotation(Column.class);
                 field.setAccessible(true);
-                columns.append(field.getName()).append(",");
+                columns.append(column.name()).append(",");
                 values.append("?,");
                 try {
-                    params.add(field.get(dataObject));
+                    Object value = field.get(dataObject);
+                    if (value instanceof UUID) {
+                        value = value.toString();  // Convert UUID to string representation
+                    }
+                    params.add(value);
                 } catch (IllegalAccessException e) {
                     throw new SQLException("Failed to access field value", e);
                 }
@@ -140,7 +142,11 @@ public abstract class SQLStorage implements Database {
         for (Map.Entry<String, Object> data : dataObject.getData().entrySet()) {
             columns.append(data.getKey()).append(",");
             values.append("?,");
-            params.add(data.getValue());
+            Object value = data.getValue();
+            if (value instanceof UUID) {
+                value = value.toString();  // Convert UUID to string representation
+            }
+            params.add(value);
         }
 
         columns.deleteCharAt(columns.length() - 1);
@@ -272,8 +278,13 @@ public abstract class SQLStorage implements Database {
                     T dataObject = createDataObjectInstance(clazz);
                     for (Field field : clazz.getDeclaredFields()) {
                         if (field.isAnnotationPresent(Column.class)) {
+                            Column column = field.getAnnotation(Column.class);
+                            Object value = rs.getObject(column.name());
+                            if (field.getType() == UUID.class && value instanceof String) {
+                                value = UUID.fromString((String) value);
+                            }
                             field.setAccessible(true);
-                            field.set(dataObject, rs.getObject(field.getName()));
+                            field.set(dataObject, value);
                         }
                     }
                     fillDataObjectFromResultSet(dataObject, rs);
@@ -304,8 +315,13 @@ public abstract class SQLStorage implements Database {
                     T dataObject = createDataObjectInstance(clazz);
                     for (Field field : clazz.getDeclaredFields()) {
                         if (field.isAnnotationPresent(Column.class)) {
+                            Column column = field.getAnnotation(Column.class);
+                            Object value = rs.getObject(column.name());
+                            if (field.getType() == UUID.class && value instanceof String) {
+                                value = UUID.fromString((String) value);
+                            }
                             field.setAccessible(true);
-                            field.set(dataObject, rs.getObject(field.getName()));
+                            field.set(dataObject, value);
                         }
                     }
                     fillDataObjectFromResultSet(dataObject, rs);
@@ -419,6 +435,9 @@ public abstract class SQLStorage implements Database {
         try (PreparedStatement ps = connection.prepareStatement(sql)) {
             int index = 1;
             for (Object value : data.values()) {
+                if (value instanceof UUID) {
+                    value = value.toString();  // Convert UUID to string representation
+                }
                 ps.setObject(index++, value);
             }
             for (Object param : whereParams) {
@@ -458,7 +477,8 @@ public abstract class SQLStorage implements Database {
             Map<String, String> columns = new HashMap<>();
             for (Field field : dataObjectClass.getDeclaredFields()) {
                 if (field.isAnnotationPresent(Column.class)) {
-                    columns.put(field.getName(), getColumnType(field.getType()));
+                    Column column = field.getAnnotation(Column.class);
+                    columns.put(column.name(), getColumnType(field.getType()));
                 }
             }
             createTable(tableName, columns);
@@ -472,22 +492,6 @@ public abstract class SQLStorage implements Database {
      * @return the SQL column type
      * @throws IllegalArgumentException if the data type is unsupported
      */
-    private String getColumnType(Class<?> type) {
-        if (type == Integer.class || type == Long.class) {
-            return "INTEGER";
-        } else if (type == String.class) {
-            return "TEXT";
-        } else if (type == Boolean.class) {
-            return "BOOLEAN";
-        } else if (type == Double.class || type == Float.class) {
-            return "REAL";
-        } else if (type == java.util.Date.class) {
-            return "INTEGER";
-        } else if (type == byte[].class) {
-            return "BLOB";
-        } else {
-            throw new IllegalArgumentException("Unsupported data type: " + type.getName());
-        }
-    }
+    public abstract String getColumnType(Class<?> type);
 
 }

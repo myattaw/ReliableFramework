@@ -12,9 +12,11 @@ import org.bukkit.entity.Player;
 import org.bukkit.event.EventHandler;
 import org.bukkit.event.Listener;
 import org.bukkit.event.player.PlayerJoinEvent;
+import org.bukkit.event.server.PluginEnableEvent;
 import org.bukkit.plugin.java.JavaPlugin;
 
 import java.sql.SQLException;
+import java.util.concurrent.CompletableFuture;
 
 public class ReliableFramework extends JavaPlugin implements Listener {
 
@@ -46,22 +48,37 @@ public class ReliableFramework extends JavaPlugin implements Listener {
         }
     }
 
+
+    @EventHandler
+    public void onPluginLoad(PluginEnableEvent event) {
+        if (event.getPlugin().equals(this)) {
+            storage.loadAll(ReliableUser.class)
+                    .thenComposeAsync(users -> {
+                        Bukkit.getConsoleSender().sendMessage(
+                                ChatColor.RED + "Loaded Framework Users: " + users.size()
+                        );
+                        return CompletableFuture.completedFuture(users);
+                    })
+                    .exceptionally(ex -> {
+                        Bukkit.getConsoleSender().sendMessage(
+                                ChatColor.RED + "Failed to load users: " + ex.getMessage()
+                        );
+                        ex.printStackTrace();
+                        return null;
+                    });
+        }
+    }
+
     @EventHandler
     public void onJoin(PlayerJoinEvent event) {
         Player player = event.getPlayer();
         // Load the user from the database asynchronously
-
-        storage.loadAll(ReliableUser.class).thenComposeAsync(users -> {
-            System.out.println("Loaded Framework Users: " + users.size());
-            return null;
-        });
-
         storage.load(Entity.of("uuid", player.getUniqueId()), ReliableUser.class)
                 .thenApplyAsync(user -> {
                     if (user == null) {
                         // Create a new user if it doesn't exist
                         user = new ReliableUser(storage);
-                        user.setUuid(player.getUniqueId().toString());
+                        user.setUuid(player.getUniqueId());
                         user.setName(player.getName());
                         Bukkit.getConsoleSender().sendMessage(
                                 ChatColor.YELLOW +

@@ -8,6 +8,7 @@ import java.sql.DriverManager;
 import java.sql.PreparedStatement;
 import java.sql.ResultSet;
 import java.sql.SQLException;
+import java.util.UUID;
 
 public class MySQLStorage extends SQLStorage {
 
@@ -50,6 +51,31 @@ public class MySQLStorage extends SQLStorage {
             }
         }
         return false;
+    }
+
+    @Override
+    public String getColumnType(Class<?> type) {
+        if (type == Integer.class) {
+            return "INT";
+        } else if (type == Long.class) {
+            return "BIGINT";
+        } else if (type == String.class) {
+            return "VARCHAR(255)";
+        } else if (type == Boolean.class) {
+            return "TINYINT(1)";
+        } else if (type == Double.class) {
+            return "DOUBLE";
+        } else if (type == Float.class) {
+            return "FLOAT";
+        } else if (type == java.util.Date.class) {
+            return "DATETIME";
+        } else if (type == byte[].class) {
+            return "BLOB";
+        } else if (type == UUID.class) {
+            return "CHAR(36)"; // UUIDs stored as CHAR(36)
+        } else {
+            throw new IllegalArgumentException("Unsupported data type: " + type.getName());
+        }
     }
 
 }
