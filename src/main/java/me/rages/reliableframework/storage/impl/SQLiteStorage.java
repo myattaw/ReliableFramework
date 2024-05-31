@@ -9,7 +9,9 @@ import java.sql.DriverManager;
 import java.sql.PreparedStatement;
 import java.sql.ResultSet;
 import java.sql.SQLException;
+import java.util.Date;
 import java.util.UUID;
+import java.util.concurrent.CompletableFuture;
 
 /**
  * SQLiteStorage is an implementation of SQLStorage that provides
@@ -52,19 +54,18 @@ public class SQLiteStorage extends SQLStorage {
 
     @Override
     public String getColumnType(Class<?> type) {
-        if (type == Integer.class || type == Long.class) {
+        if (type == Integer.class || type == Long.class || type == Boolean.class) {
             return "INTEGER";
         } else if (type == String.class || type == UUID.class) {
             return "TEXT";
-        } else if (type == Boolean.class) {
-            return "BOOLEAN";
         } else if (type == Double.class || type == Float.class) {
             return "REAL";
-        } else if (type == java.util.Date.class) {
+        } else if (type == Date.class) {
             return "INTEGER";
         } else if (type == byte[].class) {
             return "BLOB";
-        } else {
+        }
+        else {
             throw new IllegalArgumentException("Unsupported data type: " + type.getName());
         }
     }

@@ -282,6 +282,8 @@ public abstract class SQLStorage implements Database {
                             Object value = rs.getObject(column.name());
                             if (field.getType() == UUID.class && value instanceof String) {
                                 value = UUID.fromString((String) value);
+                            } else if (field.getType() == Boolean.class) {
+                                value = (Integer) value != 0;
                             }
                             field.setAccessible(true);
                             field.set(dataObject, value);
@@ -319,6 +321,8 @@ public abstract class SQLStorage implements Database {
                             Object value = rs.getObject(column.name());
                             if (field.getType() == UUID.class && value instanceof String) {
                                 value = UUID.fromString((String) value);
+                            } else if (field.getType() == Boolean.class) {
+                                value = (Integer) value != 0;
                             }
                             field.setAccessible(true);
                             field.set(dataObject, value);
@@ -332,36 +336,6 @@ public abstract class SQLStorage implements Database {
             }
             return dataObjects;
         });
-    }
-
-
-    /**
-     * Creates an instance of a data object.
-     *
-     * @param clazz the class of the data object
-     * @param <D>   the type of the data object
-     * @return the data object instance
-     * @throws ReflectiveOperationException if an error occurs during instantiation
-     */
-    private <D extends DataObject> D createDataObjectInstance(Class<D> clazz) throws ReflectiveOperationException {
-        Constructor<D> constructor = clazz.getConstructor(SQLStorage.class);
-        return constructor.newInstance(this);
-    }
-
-    /**
-     * Fills a data object with data from a result set.
-     *
-     * @param dataObject the data object to fill
-     * @param rs         the result set
-     * @throws SQLException if a database access error occurs
-     */
-    private void fillDataObjectFromResultSet(DataObject dataObject, ResultSet rs) throws SQLException {
-        ResultSetMetaData metaData = rs.getMetaData();
-        int columnCount = metaData.getColumnCount();
-        for (int i = 1; i <= columnCount; i++) {
-            String columnName = metaData.getColumnName(i);
-            dataObject.set(columnName, rs.getObject(columnName));
-        }
     }
 
     /**
@@ -395,6 +369,35 @@ public abstract class SQLStorage implements Database {
                 throw new RuntimeException("Failed to save data object", e);
             }
         });
+    }
+
+    /**
+     * Creates an instance of a data object.
+     *
+     * @param clazz the class of the data object
+     * @param <D>   the type of the data object
+     * @return the data object instance
+     * @throws ReflectiveOperationException if an error occurs during instantiation
+     */
+    private <D extends DataObject> D createDataObjectInstance(Class<D> clazz) throws ReflectiveOperationException {
+        Constructor<D> constructor = clazz.getConstructor(SQLStorage.class);
+        return constructor.newInstance(this);
+    }
+
+    /**
+     * Fills a data object with data from a result set.
+     *
+     * @param dataObject the data object to fill
+     * @param rs         the result set
+     * @throws SQLException if a database access error occurs
+     */
+    private void fillDataObjectFromResultSet(DataObject dataObject, ResultSet rs) throws SQLException {
+        ResultSetMetaData metaData = rs.getMetaData();
+        int columnCount = metaData.getColumnCount();
+        for (int i = 1; i <= columnCount; i++) {
+            String columnName = metaData.getColumnName(i);
+            dataObject.set(columnName, rs.getObject(columnName));
+        }
     }
 
     /**

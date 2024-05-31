@@ -8,6 +8,7 @@ import java.sql.DriverManager;
 import java.sql.PreparedStatement;
 import java.sql.ResultSet;
 import java.sql.SQLException;
+import java.util.Date;
 import java.util.UUID;
 
 public class MySQLStorage extends SQLStorage {
@@ -67,7 +68,7 @@ public class MySQLStorage extends SQLStorage {
             return "DOUBLE";
         } else if (type == Float.class) {
             return "FLOAT";
-        } else if (type == java.util.Date.class) {
+        } else if (type == Date.class) {
             return "DATETIME";
         } else if (type == byte[].class) {
             return "BLOB";
