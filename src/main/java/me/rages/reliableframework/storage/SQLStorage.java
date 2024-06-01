@@ -357,6 +357,19 @@ public abstract class SQLStorage implements Database {
                     throw new SQLException("No @Id field found in data object");
                 }
 
+                for (Field field : dataObject.getClass().getDeclaredFields()) {
+                    if (field.isAnnotationPresent(Column.class)) {
+                        Column column = field.getAnnotation(Column.class);
+                        field.setAccessible(true); // Ensure the field is accessible
+                        try {
+                            Object value = field.get(dataObject);
+                            data.put(column.name(), value);
+                        } catch (IllegalAccessException e) {
+                            throw new RuntimeException(e);
+                        }
+                    }
+                }
+
                 // Update the data
                 int rowsAffected = 0;
                 if (!data.isEmpty()) {
