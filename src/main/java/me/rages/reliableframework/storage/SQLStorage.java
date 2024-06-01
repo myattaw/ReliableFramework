@@ -119,7 +119,7 @@ public abstract class SQLStorage implements Database {
         StringBuilder values = new StringBuilder();
         List<Object> params = new ArrayList<>();
 
-        // Insert accessible fields into the DataObject table
+        // Insert fields annotated with @Column
         for (Field field : dataObject.getClass().getDeclaredFields()) {
             if (field.isAnnotationPresent(Column.class)) {
                 Column column = field.getAnnotation(Column.class);
@@ -138,7 +138,7 @@ public abstract class SQLStorage implements Database {
             }
         }
 
-        // Insert extra data values into the DataObject table
+        // Insert extra data values
         for (Map.Entry<String, Object> data : dataObject.getData().entrySet()) {
             columns.append(data.getKey()).append(",");
             values.append("?,");
@@ -149,8 +149,11 @@ public abstract class SQLStorage implements Database {
             params.add(value);
         }
 
-        columns.deleteCharAt(columns.length() - 1);
-        values.deleteCharAt(values.length() - 1);
+        // Remove the last comma from columns and values
+        if (columns.length() > 0 && values.length() > 0) {
+            columns.deleteCharAt(columns.length() - 1);
+            values.deleteCharAt(values.length() - 1);
+        }
 
         String sql = "INSERT INTO " + tableName + " (" + columns + ") VALUES (" + values + ")";
         try (PreparedStatement preparedStatement = connection.prepareStatement(sql)) {
@@ -355,10 +358,13 @@ public abstract class SQLStorage implements Database {
                 }
 
                 // Update the data
-                int rowsAffected = updateAndReturnAffectedRows(
-                        getTableName(dataObject.getClass()),
-                        data, entry.getColumnName() + " = ?", entry.getValue()
-                );
+                int rowsAffected = 0;
+                if (!data.isEmpty()) {
+                    rowsAffected = updateAndReturnAffectedRows(
+                            getTableName(dataObject.getClass()),
+                            data, entry.getColumnName() + " = ?", entry.getValue()
+                    );
+                }
 
                 // If no rows were affected, insert new data
                 if (rowsAffected == 0) {
