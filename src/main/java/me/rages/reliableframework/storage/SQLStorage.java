@@ -483,11 +483,15 @@ public abstract class SQLStorage implements Database {
     public final void createTablesForDataObjects(Class<? extends DataObject>... dataObjectClasses) throws SQLException {
         for (Class<? extends DataObject> dataObjectClass : dataObjectClasses) {
             String tableName = getTableName(dataObjectClass);
-            Map<String, String> columns = new HashMap<>();
+            Map<String, String> columns = new LinkedHashMap<>();
             for (Field field : dataObjectClass.getDeclaredFields()) {
                 if (field.isAnnotationPresent(Column.class)) {
                     Column column = field.getAnnotation(Column.class);
-                    columns.put(column.name(), getColumnType(field.getType()));
+                    if (field.isAnnotationPresent(Id.class)) {
+                        columns.put(column.name(), getColumnType(field.getType()) + " PRIMARY KEY");
+                    } else {
+                        columns.put(column.name(), getColumnType(field.getType()));
+                    }
                 }
             }
             createTable(tableName, columns);
