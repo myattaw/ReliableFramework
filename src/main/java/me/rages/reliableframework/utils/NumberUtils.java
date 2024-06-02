@@ -18,7 +18,7 @@ import java.util.Map;
  * Credits to [@loganb1max](https://github.com/loganb1max) for the implementation.
  * </p>
  */
-public class MoneyUtils {
+public class NumberUtils {
 
     // List of currency suffixes along with their corresponding values
     private static final List<Map.Entry<Long, String>> CURRENCY_SUFFIXES = Arrays.asList(
