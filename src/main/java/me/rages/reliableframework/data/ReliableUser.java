@@ -17,8 +17,10 @@ import java.util.UUID;
 @Table(name = "users")
 public class ReliableUser implements DataObject {
 
-    @Id
-    @Column(name = "uuid")
+    @Id(autoIncrement = true)
+    @Column(name = "id")
+    private Integer id;
+    @Column(name = "player_uuid")
     private UUID uuid;
     @Column(name = "username")
     private String name;

@@ -501,7 +501,9 @@ public abstract class SQLStorage implements Database {
                 if (field.isAnnotationPresent(Column.class)) {
                     Column column = field.getAnnotation(Column.class);
                     if (field.isAnnotationPresent(Id.class)) {
-                        columns.put(column.name(), getColumnType(field.getType()) + " PRIMARY KEY");
+                        Id id = field.getAnnotation(Id.class);
+                        String key = id.autoIncrement() ? " PRIMARY KEY AUTOINCREMENT" : " PRIMARY KEY";
+                        columns.put(column.name(), getColumnType(field.getType()) + key);
                     } else {
                         columns.put(column.name(), getColumnType(field.getType()));
                     }
