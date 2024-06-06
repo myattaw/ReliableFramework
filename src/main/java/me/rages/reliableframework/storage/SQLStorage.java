@@ -113,7 +113,6 @@ public abstract class SQLStorage implements Database {
      * @param dataObject the data object to insert
      * @throws SQLException if a database access error occurs
      */
-    @Override
     public void insert(String tableName, DataObject dataObject) throws SQLException {
         StringBuilder columns = new StringBuilder();
         StringBuilder values = new StringBuilder();
@@ -156,14 +155,55 @@ public abstract class SQLStorage implements Database {
         }
 
         String sql = "INSERT INTO " + tableName + " (" + columns + ") VALUES (" + values + ")";
-        try (PreparedStatement preparedStatement = connection.prepareStatement(sql)) {
+        try (PreparedStatement preparedStatement = connection.prepareStatement(sql, Statement.RETURN_GENERATED_KEYS)) {
             int index = 1;
             for (Object value : params) {
                 preparedStatement.setObject(index++, value);
             }
             preparedStatement.executeUpdate();
+
+            // Retrieve the generated keys
+            try (ResultSet generatedKeys = preparedStatement.getGeneratedKeys()) {
+                if (generatedKeys.next()) {
+                    // Get the generated ID
+                    Object generatedId = generatedKeys.getObject(1);
+                    System.out.println("Generated ID: " + generatedId);
+                    setIdField(dataObject, generatedId);
+                } else {
+                    System.out.println("No ID generated.");
+                }
+            }
         }
     }
+
+    /**
+     * Sets the value of the @Id annotated field in the data object.
+     *
+     * @param dataObject the data object
+     * @param value      the value to set
+     * @throws SQLException if a database access error occurs
+     */
+    private void setIdField(DataObject dataObject, Object value) throws SQLException {
+        for (Field field : dataObject.getClass().getDeclaredFields()) {
+            if (field.isAnnotationPresent(Id.class)) {
+                field.setAccessible(true);
+                try {
+                    if (field.getType() == Long.class || field.getType() == long.class) {
+                        field.set(dataObject, ((Number) value).longValue());
+                    } else if (field.getType() == Integer.class || field.getType() == int.class) {
+                        field.set(dataObject, ((Number) value).intValue());
+                    } else {
+                        field.set(dataObject, value);
+                    }
+                    System.out.println("ID field set to: " + field.get(dataObject));
+                } catch (IllegalAccessException e) {
+                    throw new SQLException("Failed to set @Id field value", e);
+                }
+                break;
+            }
+        }
+    }
+
 
     /**
      * Executes a query on the database.
@@ -347,8 +387,8 @@ public abstract class SQLStorage implements Database {
      * @param dataObject the data object to save
      * @return a CompletableFuture representing the save operation
      */
-    public CompletableFuture<Void> save(DataObject dataObject) {
-        return CompletableFuture.runAsync(() -> {
+    public <T extends DataObject> CompletableFuture<T> save(T dataObject) {
+        return CompletableFuture.supplyAsync(() -> {
             try {
                 Map<String, Object> data = dataObject.getData();
                 Entity.EntityEntry entry = getIdField(dataObject);
@@ -387,6 +427,7 @@ public abstract class SQLStorage implements Database {
             } catch (SQLException e) {
                 throw new RuntimeException("Failed to save data object", e);
             }
+            return dataObject;
         });
     }
 

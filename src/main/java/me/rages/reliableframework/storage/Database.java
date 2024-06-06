@@ -137,7 +137,7 @@ public interface Database {
      * @return a CompletableFuture representing the save operation
      * @throws SQLException if a database access error occurs
      */
-    CompletableFuture<Void> save(DataObject dataObject) throws SQLException;
+    <T extends DataObject> CompletableFuture<T> save(T dataObject) throws SQLException;
 
     /**
      * Gets the table name for a data object class.
