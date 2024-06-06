@@ -167,10 +167,7 @@ public abstract class SQLStorage implements Database {
                 if (generatedKeys.next()) {
                     // Get the generated ID
                     Object generatedId = generatedKeys.getObject(1);
-                    System.out.println("Generated ID: " + generatedId);
                     setIdField(dataObject, generatedId);
-                } else {
-                    System.out.println("No ID generated.");
                 }
             }
         }
@@ -188,14 +185,13 @@ public abstract class SQLStorage implements Database {
             if (field.isAnnotationPresent(Id.class)) {
                 field.setAccessible(true);
                 try {
-                    if (field.getType() == Long.class || field.getType() == long.class) {
-                        field.set(dataObject, ((Number) value).longValue());
-                    } else if (field.getType() == Integer.class || field.getType() == int.class) {
-                        field.set(dataObject, ((Number) value).intValue());
-                    } else {
-                        field.set(dataObject, value);
+                    if (value != null) {
+                        if (field.getType() == Long.class || field.getType() == long.class) {
+                            field.set(dataObject, ((Number) value).longValue());
+                        } else if (field.getType() == Integer.class || field.getType() == int.class) {
+                            field.set(dataObject, ((Number) value).intValue());
+                        }
                     }
-                    System.out.println("ID field set to: " + field.get(dataObject));
                 } catch (IllegalAccessException e) {
                     throw new SQLException("Failed to set @Id field value", e);
                 }
