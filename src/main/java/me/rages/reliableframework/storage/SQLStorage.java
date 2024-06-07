@@ -358,11 +358,20 @@ public abstract class SQLStorage implements Database {
                         if (field.isAnnotationPresent(Column.class)) {
                             Column column = field.getAnnotation(Column.class);
                             Object value = rs.getObject(column.name());
+
+                            // Handle UUID conversion
                             if (field.getType() == UUID.class && value instanceof String) {
                                 value = UUID.fromString((String) value);
-                            } else if (field.getType() == Boolean.class) {
+                            }
+                            // Handle Boolean conversion
+                            else if (field.getType() == Boolean.class && value instanceof Integer) {
                                 value = (Integer) value != 0;
                             }
+                            // Handle Long conversion
+                            else if (field.getType() == Long.class && value instanceof Integer) {
+                                value = ((Integer) value).longValue();
+                            }
+
                             field.setAccessible(true);
                             field.set(dataObject, value);
                         }
