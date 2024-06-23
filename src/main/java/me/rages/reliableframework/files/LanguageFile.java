@@ -47,6 +47,7 @@ public class LanguageFile extends ConfigFile {
                                 } else {
                                     // Save the default value to the config
                                     getConfig().set(configKey, annotation.message()[0]);
+                                    field.set(null, color(annotation.message()[0]));
                                 }
                             } else if (field.getType().equals(List.class)) {
                                 List<String> configValue = getConfig().getStringList(configKey);
@@ -57,6 +58,7 @@ public class LanguageFile extends ConfigFile {
                                 } else {
                                     // Save the default value to the config
                                     getConfig().set(configKey, Arrays.asList(annotation.message()));
+                                    field.set(null, Arrays.stream(annotation.message()).map(this::color).collect(Collectors.toList()));
                                 }
                             }
                         } catch (IllegalAccessException e) {
