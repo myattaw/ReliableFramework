@@ -3,3 +3,5 @@ version: '${project.version}'
 main: me.rages.reliableframework.ReliableFramework
 api-version: 1.19
 authors: [ Rages ]
+softdepend:
+  - FastAsyncWorldEdit

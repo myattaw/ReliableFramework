@@ -1,13 +1,17 @@
 package me.rages.reliableframework;
 
+import com.sk89q.worldedit.math.BlockVector3;
 import lombok.SneakyThrows;
 import me.rages.reliableframework.data.Entity;
 import me.rages.reliableframework.data.ReliableUser;
+import me.rages.reliableframework.pluginservice.ServiceManager;
+import me.rages.reliableframework.pluginservice.impl.worldedit.FAWEService;
 import me.rages.reliableframework.storage.SQLStorage;
 import me.rages.reliableframework.storage.impl.MySQLStorage;
 import me.rages.reliableframework.storage.impl.SQLiteStorage;
 import org.bukkit.Bukkit;
 import org.bukkit.ChatColor;
+import org.bukkit.block.data.BlockData;
 import org.bukkit.entity.Player;
 import org.bukkit.event.EventHandler;
 import org.bukkit.event.Listener;
@@ -15,7 +19,9 @@ import org.bukkit.event.player.PlayerJoinEvent;
 import org.bukkit.event.server.PluginEnableEvent;
 import org.bukkit.plugin.java.JavaPlugin;
 
+import java.io.File;
 import java.sql.SQLException;
+import java.util.Map;
 import java.util.concurrent.CompletableFuture;
 
 public class ReliableFramework extends JavaPlugin implements Listener {
@@ -28,6 +34,34 @@ public class ReliableFramework extends JavaPlugin implements Listener {
         saveDefaultConfig();
         //TODO: Read configuration file later to determine what storage system to use.
         // Possibly remove 'Class<? extends DataObject>... dataObjectClasses' and use reflections.
+
+        ServiceManager serviceManager = ServiceManager.createServiceManager(this)
+                .registerService(new FAWEService());
+
+        FAWEService faweService = serviceManager.getService(FAWEService.class);
+
+        Bukkit.getScheduler().runTaskLaterAsynchronously(this, () -> {
+            File file = new File(getDataFolder(), "test.schem");
+
+            Runtime runtime = Runtime.getRuntime();
+
+            // Garbage collection to get more accurate memory usage
+            runtime.gc();
+
+            long startMemory = runtime.totalMemory() - runtime.freeMemory();
+            long startTime = System.currentTimeMillis();
+
+            Map<BlockVector3, BlockData> result = faweService.readSchematic(file);
+
+            long endTime = System.currentTimeMillis();
+            long endMemory = runtime.totalMemory() - runtime.freeMemory();
+            long duration = endTime - startTime;
+            long memoryUsed = endMemory - startMemory;
+
+            System.out.println("Number of elements: " + result.size());
+            System.out.println("Method execution time: " + duration + " ms");
+            System.out.println("Memory used: " + memoryUsed + " bytes");
+        }, 20L * 5);
 
         String dbType = getConfig().getString("storage.type", "SQLite");
         if (dbType.equals("SQLite")) {

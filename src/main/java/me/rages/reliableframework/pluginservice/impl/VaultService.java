@@ -1,5 +1,6 @@
-package me.rages.reliableframework.pluginservice;
+package me.rages.reliableframework.pluginservice.impl;
 
+import me.rages.reliableframework.pluginservice.PluginService;
 import net.milkbowl.vault.economy.Economy;
 import net.milkbowl.vault.economy.EconomyResponse;
 import org.bukkit.OfflinePlayer;
