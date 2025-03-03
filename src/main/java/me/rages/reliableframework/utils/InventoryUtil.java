@@ -1,5 +1,7 @@
 package me.rages.reliableframework.utils;
 
+import de.tr7zw.nbtapi.NBTContainer;
+import de.tr7zw.nbtapi.NBTItem;
 import org.bukkit.Bukkit;
 import org.bukkit.entity.Player;
 import org.bukkit.inventory.Inventory;
@@ -10,7 +12,6 @@ import org.yaml.snakeyaml.external.biz.base64Coder.Base64Coder;
 
 import java.io.ByteArrayInputStream;
 import java.io.ByteArrayOutputStream;
-import java.io.IOException;
 import java.util.Map;
 
 public class InventoryUtil {
@@ -34,7 +35,7 @@ public class InventoryUtil {
     public static ItemStack itemFromBase64(String data) {
         try (ByteArrayInputStream inputStream = new ByteArrayInputStream(Base64Coder.decodeLines(data));
              BukkitObjectInputStream dataInput = new BukkitObjectInputStream(inputStream)) {
-
+            
             return (ItemStack) dataInput.readObject();
         } catch (Exception e) {
             throw new IllegalStateException("Cannot deserialize item stack!", e);

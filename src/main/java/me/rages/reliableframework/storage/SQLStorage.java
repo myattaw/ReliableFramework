@@ -228,19 +228,23 @@ public abstract class SQLStorage implements Database {
      * @throws SQLException if a database access error occurs
      */
     @Override
-    public void update(String tableName, Map<String, Object> data, String whereClause, Object... whereParams) throws SQLException {
-        String setClause = String.join(" = ?, ", data.keySet()) + " = ?";
-        String sql = "UPDATE " + tableName + " SET " + setClause + " WHERE " + whereClause;
-        try (PreparedStatement ps = connection.prepareStatement(sql)) {
-            int index = 1;
-            for (Object value : data.values()) {
-                ps.setObject(index++, value);
+    public CompletableFuture<Void> update(String tableName, Map<String, Object> data, String whereClause, Object... whereParams) {
+        return CompletableFuture.runAsync(() -> {
+            String setClause = String.join(" = ?, ", data.keySet()) + " = ?";
+            String sql = "UPDATE " + tableName + " SET " + setClause + " WHERE " + whereClause;
+            try (PreparedStatement ps = connection.prepareStatement(sql)) {
+                int index = 1;
+                for (Object value : data.values()) {
+                    ps.setObject(index++, value);
+                }
+                for (Object param : whereParams) {
+                    ps.setObject(index++, param);
+                }
+                ps.executeUpdate();
+            } catch (SQLException e) {
+                throw new RuntimeException(e);
             }
-            for (Object param : whereParams) {
-                ps.setObject(index++, param);
-            }
-            ps.executeUpdate();
-        }
+        });
     }
 
     /**
@@ -252,14 +256,18 @@ public abstract class SQLStorage implements Database {
      * @throws SQLException if a database access error occurs
      */
     @Override
-    public void delete(String tableName, String whereClause, Object... whereParams) throws SQLException {
-        String sql = "DELETE FROM " + tableName + " WHERE " + whereClause;
-        try (PreparedStatement ps = connection.prepareStatement(sql)) {
-            for (int i = 0; i < whereParams.length; i++) {
-                ps.setObject(i + 1, whereParams[i]);
+    public CompletableFuture<Void> delete(String tableName, String whereClause, Object... whereParams) {
+        return CompletableFuture.runAsync(() -> {
+            String sql = "DELETE FROM " + tableName + " WHERE " + whereClause;
+            try (PreparedStatement ps = connection.prepareStatement(sql)) {
+                for (int i = 0; i < whereParams.length; i++) {
+                    ps.setObject(i + 1, whereParams[i]);
+                }
+                ps.executeUpdate();
+            } catch (SQLException e) {
+                throw new RuntimeException(e);
             }
-            ps.executeUpdate();
-        }
+        });
     }
 
 

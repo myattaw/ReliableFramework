@@ -69,25 +69,25 @@ public interface Database {
     ResultSet query(String query, Object... params) throws SQLException;
 
     /**
-     * Updates data in a table.
+     * Updates data in a table asynchronously.
      *
      * @param tableName   the name of the table
      * @param data        the data to update
      * @param whereClause the where clause to specify which rows to update
      * @param whereParams the parameters for the where clause
-     * @throws SQLException if a database access error occurs
+     * @return a CompletableFuture that completes when the update is done
      */
-    void update(String tableName, Map<String, Object> data, String whereClause, Object... whereParams) throws SQLException;
+    CompletableFuture<Void> update(String tableName, Map<String, Object> data, String whereClause, Object... whereParams);
 
     /**
-     * Deletes data from a table.
+     * Deletes data from a table asynchronously.
      *
      * @param tableName   the name of the table
      * @param whereClause the where clause to specify which rows to delete
      * @param whereParams the parameters for the where clause
-     * @throws SQLException if a database access error occurs
+     * @return a CompletableFuture that completes when the delete operation is done
      */
-    void delete(String tableName, String whereClause, Object... whereParams) throws SQLException;
+    CompletableFuture<Void> delete(String tableName, String whereClause, Object... whereParams);
 
     /**
      * Creates a table with the specified columns.
